@@ -2104,26 +2104,39 @@ function InterfacePro(p) {
   function nf(msg,type){setNotif({msg,type});setTimeout(function(){setNotif(null);},3200);}
 
   var AVATARS=[
-    // Animaux cool
-    "🦁","🐺","🦊","🐯","🦅","🐉","🦈","🦎","🐍","🦋",
-    // Sports & activités
-    "⚽","🏀","🎸","🎮","🛹","🎨","🎤","🥊","🏋️","🎯",
-    // Univers / perso
-    "⚡","🌙","🔥","💫","❄️","🌊","🌑","🎭","👾","🚀",
-    // Nature & vibes
-    "🌵","🌸","🍀","🌟","🦄","🌈","💎","🗡️","🎲","🏴‍☠️",
+    // Animaux sauvages
+    "🦁","🐺","🦊","🐯","🦅","🐉","🦈","🦋","🐍","🦎",
+    "🐻","🦝","🦓","🦏","🦧","🐬","🦜","🦚","🦩","🦔",
+    // Sports
+    "⚽","🏀","🏈","🎾","🏐","🏊","🛹","🤸","🥋","🏄",
+    "🚴","🤺","🥊","🎯","🏹","🏋️","🤼","🏇","🧗","🤾",
+    // Musique & gaming
+    "🎮","🕹️","👾","🎸","🎧","🎤","🥁","🎹","🎵","🎬",
+    // Vibes & univers
+    "🔥","⚡","💥","🌊","❄️","🌙","💫","✨","🌈","🚀",
+    "💀","👑","💎","🏆","⚔️","🛸","🤖","👽","🌀","🎭",
+    // Nature & cool
+    "🌵","🌸","🌺","🍄","🌿","🍀","🌟","🦄","🎲","🏴‍☠️",
+    // Lifestyle ados
+    "😎","🤩","🤟","👊","🤜","📸","🎨","🍕","🧋","🎪",
   ];
   var COLS=[
-    // Vifs
-    {h:"Violet",     c:"#7c3aed"}, {h:"Indigo",    c:"#4338ca"},
-    {h:"Bleu",       c:"#1d4ed8"}, {h:"Cyan",      c:"#0891b2"},
-    {h:"Turquoise",  c:"#0f766e"}, {h:"Vert",       c:"#15803d"},
+    // Violet / bleu
+    {h:"Violet",     c:"#7c3aed"}, {h:"Lavande",    c:"#8b5cf6"},
+    {h:"Indigo",     c:"#4338ca"}, {h:"Bleu roi",   c:"#1d4ed8"},
+    {h:"Bleu ciel",  c:"#0284c7"}, {h:"Cyan",       c:"#0891b2"},
+    // Vert
+    {h:"Turquoise",  c:"#0f766e"}, {h:"Menthe",     c:"#0d9488"},
+    {h:"Vert",       c:"#15803d"}, {h:"Lime",       c:"#65a30d"},
     // Chauds
-    {h:"Lime",       c:"#4d7c0f"}, {h:"Jaune",      c:"#b45309"},
-    {h:"Orange",     c:"#c2410c"}, {h:"Rouge",      c:"#b91c1c"},
-    // Tendance
-    {h:"Rose",       c:"#be185d"}, {h:"Fuchsia",    c:"#a21caf"},
+    {h:"Jaune",      c:"#ca8a04"}, {h:"Or",         c:"#d97706"},
+    {h:"Orange",     c:"#ea580c"}, {h:"Rouge",      c:"#dc2626"},
+    // Rose / fuchsia
+    {h:"Corail",     c:"#e11d48"}, {h:"Rose vif",   c:"#db2777"},
+    {h:"Fuchsia",    c:"#c026d3"}, {h:"Violet nuit",c:"#7e22ce"},
+    // Sombres tendance
     {h:"Gris acier", c:"#334155"}, {h:"Ardoise",    c:"#475569"},
+    {h:"Noir mat",   c:"#1e293b"}, {h:"Brun",       c:"#78350f"},
   ];
 
   // Objectifs visibles pour l'éducateur
