@@ -1,0 +1,22 @@
+# Données locales (ne jamais versionner)
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.env
+
+# Anciens fichiers de dev
+V2*
+V3*
+V4*
+format html.zip
+PieceJointe.txt
+*.docx
+*.pdf
+*.part
+
+# OS
+.DS_Store
+Thumbs.db
