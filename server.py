@@ -251,7 +251,7 @@ class Handler(BaseHTTPRequestHandler):
     def _create_user(self, b):
         """Crée un utilisateur avec mot de passe haché (admin/éducateur seulement)."""
         requester = get_session(self._token())
-        if not requester or requester.get("role") not in ("admin", "educateur"):
+        if not requester or requester.get("role") not in ("superadmin", "admin", "educateur"):
             return self._err("Non autorisé.", 403)
         if requester["role"] == "educateur" and b.get("role") != "jeune":
             return self._err("Les éducateurs peuvent uniquement créer des comptes jeunes.", 403)
@@ -285,7 +285,7 @@ class Handler(BaseHTTPRequestHandler):
     def _set_password(self, uid: int, b):
         """Admin ou éducateur réinitialise directement le mot de passe d'un jeune."""
         requester = get_session(self._token())
-        if not requester or requester.get("role") not in ("admin", "educateur"):
+        if not requester or requester.get("role") not in ("superadmin", "admin", "educateur"):
             return self._err("Non autorisé.", 403)
 
         new_mdp = b.get("newMdp", "")
@@ -325,7 +325,7 @@ class Handler(BaseHTTPRequestHandler):
     def _gen_reset_code(self, uid: int, b):
         """Génère un code de réinitialisation pour un jeune (admin/éducateur seulement)."""
         requester = get_session(self._token())
-        if not requester or requester.get("role") not in ("admin", "educateur"):
+        if not requester or requester.get("role") not in ("superadmin", "admin", "educateur"):
             return self._err("Non autorisé.", 403)
 
         d    = load_data()

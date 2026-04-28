@@ -904,9 +904,10 @@ function DashJeune(p) {
   var niv      = getNiveau(pts);
   var nxt      = NIVEAUX.find(function(n){return n.min>pts;});
   var myBadges = getBadges(u.id, p.objectifs);
-  var [tab,    setTab]    = useState("objectifs");
-  var [modal,  setModal]  = useState(null); // "declarer" obj | "comment" obj
-  var [msgJeune, setMsgJeune] = useState("");
+  var [tab,       setTab]       = useState("objectifs");
+  var [modal,     setModal]     = useState(null);
+  var [msgJeune,  setMsgJeune]  = useState("");
+  var [changeMdp, setChangeMdp] = useState(null);
 
   var enCours  = myObjs.filter(function(o){return o.statut==="en_cours";});
   var attente  = myObjs.filter(function(o){return o.statut==="attente_valid";});
@@ -949,8 +950,11 @@ function DashJeune(p) {
             <div style={{fontSize:11,color:"rgba(255,255,255,.6)",letterSpacing:1.5,textTransform:"uppercase",marginBottom:4}}>{struct.emoji} {struct.nom}</div>
             <div style={{fontFamily:FONT_D,fontSize:26,color:"#fff"}}>{u.prenom}</div>
           </div>
-          <Btn ghost color="rgba(255,255,255,.6)" brdC="rgba(255,255,255,.2)" sm onClick={p.onLogout}>Déconnexion</Btn>
-          <ThemeToggle isDark={p.isDark} onToggle={p.onToggleTheme}/>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            <Btn ghost color="rgba(255,255,255,.6)" brdC="rgba(255,255,255,.2)" sm onClick={function(){setChangeMdp({mdpActuel:"",mdpNew:"",mdpNew2:"",showA:false,showN:false,err:""});}}>🔑</Btn>
+            <Btn ghost color="rgba(255,255,255,.6)" brdC="rgba(255,255,255,.2)" sm onClick={p.onLogout}>Déconnexion</Btn>
+            <ThemeToggle isDark={p.isDark} onToggle={p.onToggleTheme}/>
+          </div>
         </div>
         {/* Niveau + points */}
         <div style={{display:"flex",alignItems:"center",gap:14,background:"rgba(0,0,0,.25)",borderRadius:14,padding:"12px 16px"}}>
@@ -1182,6 +1186,52 @@ function DashJeune(p) {
         <div style={{display:"flex",gap:10}}>
           <Btn ghost color={T.tx2} onClick={function(){setModal(null);}}>Annuler</Btn>
           <Btn bg={T.orange} style={{flex:1,justifyContent:"center"}} onClick={envoyerCommentaire}>💬 Envoyer</Btn>
+        </div>
+      </Modal>}
+
+      {changeMdp && <Modal onClose={function(){setChangeMdp(null);}} w={420}>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+          <div style={{width:52,height:52,borderRadius:14,background:T.teal+"30",border:"2px solid "+T.teal,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>🔑</div>
+          <div><div style={{fontSize:18,fontWeight:800}}>Changer mon mot de passe</div></div>
+        </div>
+        {changeMdp.err && <div style={{background:T.red+"22",border:"1px solid "+T.red,borderRadius:8,padding:"8px 12px",marginBottom:12,fontSize:13,color:T.redL}}>{changeMdp.err}</div>}
+        <div style={{display:"flex",flexDirection:"column",gap:12}}>
+          <div>
+            <div style={{fontSize:13,color:T.tx2,marginBottom:5,fontWeight:600}}>Mot de passe actuel *</div>
+            <div style={{position:"relative"}}>
+              <Inp type={changeMdp.showA?"text":"password"} value={changeMdp.mdpActuel}
+                onChange={function(e){setChangeMdp(function(s){return Object.assign({},s,{mdpActuel:e.target.value,err:""});});}}
+                placeholder="Mot de passe actuel" style={{paddingRight:42}}/>
+              <span onClick={function(){setChangeMdp(function(s){return Object.assign({},s,{showA:!s.showA});});}}
+                style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:T.tx3,fontSize:16,userSelect:"none"}}>
+                {changeMdp.showA?"🙈":"👁️"}
+              </span>
+            </div>
+          </div>
+          <div>
+            <div style={{fontSize:13,color:T.tx2,marginBottom:5,fontWeight:600}}>Nouveau mot de passe * <span style={{fontWeight:400,color:T.tx3}}>(min. 8 caractères)</span></div>
+            <Inp type="password" value={changeMdp.mdpNew}
+              onChange={function(e){setChangeMdp(function(s){return Object.assign({},s,{mdpNew:e.target.value,err:""});});}}
+              placeholder="Nouveau mot de passe"/>
+          </div>
+          <div>
+            <div style={{fontSize:13,color:T.tx2,marginBottom:5,fontWeight:600}}>Confirmer *</div>
+            <Inp type="password" value={changeMdp.mdpNew2}
+              onChange={function(e){setChangeMdp(function(s){return Object.assign({},s,{mdpNew2:e.target.value,err:""});});}}
+              placeholder="Confirmer le nouveau mot de passe"/>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:4}}>
+            <Btn ghost color={T.tx2} brdC={T.brd} onClick={function(){setChangeMdp(null);}}>Annuler</Btn>
+            <Btn bg={T.teal} style={{flex:1,justifyContent:"center"}} onClick={function(){
+              if(!changeMdp.mdpActuel){setChangeMdp(function(s){return Object.assign({},s,{err:"Mot de passe actuel requis."});});return;}
+              if(changeMdp.mdpNew.length<8){setChangeMdp(function(s){return Object.assign({},s,{err:"Minimum 8 caractères."});});return;}
+              if(changeMdp.mdpNew!==changeMdp.mdpNew2){setChangeMdp(function(s){return Object.assign({},s,{err:"Les mots de passe ne correspondent pas."});});return;}
+              apiPost("/api/change-password",{currentMdp:changeMdp.mdpActuel,newMdp:changeMdp.mdpNew}).then(function(data){
+                if(data.ok){setChangeMdp(null);p.notify("Mot de passe modifié !","success");}
+                else{setChangeMdp(function(s){return Object.assign({},s,{err:data.error||"Erreur."});});}
+              });
+            }}>✅ Confirmer</Btn>
+          </div>
         </div>
       </Modal>}
     </div>
@@ -1622,6 +1672,7 @@ function SupervisionDT(p) {
 
 function EquipesPanel(p) {
   var T = useTheme();
+  var isSuperAdmin = p.currentUser && p.currentUser.role === "superadmin";
   var [sousTab,      setSousTab]      = useState("structures");
   var [confirmSuppr, setConfirmSuppr] = useState(null);
   var [editDroits,   setEditDroits]   = useState(null);
@@ -1655,6 +1706,8 @@ function EquipesPanel(p) {
     p.nf("Affectation mise à jour","success");
   }
   function supprimerUser(userId) {
+    if(!p.currentUser||p.currentUser.role!=="superadmin"){p.nf("Seul le super-administrateur peut supprimer des comptes","error");return;}
+    if(userId===p.currentUser.id){p.nf("Impossible de supprimer votre propre compte","error");return;}
     p.setUsers(function(prev){return prev.filter(function(u){return u.id!==userId;});});
     p.nf("Compte supprimé","warn");
   }
@@ -1741,7 +1794,7 @@ function EquipesPanel(p) {
             </Sel>
             <Btn sm bg={T.purple} onClick={function(){setEditDroits({user:edu,droits:Object.assign({},DROITS_DEF,edu.droits||{})});}}>⚙️ Droits</Btn>
             <Btn sm bg={T.teal} onClick={function(){setResetMdp({user:edu,newMdp:"",showMdp:false});}}>🔑 MDP</Btn>
-            <Btn sm bg={T.red} onClick={function(){supprimerUser(edu.id);}}>🗑</Btn>
+            {isSuperAdmin && <Btn sm bg={T.red} onClick={function(){supprimerUser(edu.id);}}>🗑</Btn>}
           </div>
           <div style={{marginTop:10,display:"flex",flexWrap:"wrap",gap:5}}>
             {DROITS_LABELS.map(function(d){
@@ -1780,7 +1833,7 @@ function EquipesPanel(p) {
               {tokenActif?"🔄 Nouveau code":"🔑 Générer code"}
             </Btn>
             <Btn sm bg={T.orange} onClick={function(){setResetMdp({user:j,newMdp:"",showMdp:false});}}>✏️ MDP</Btn>
-            <Btn sm bg={T.red} onClick={function(){supprimerUser(j.id);}}>🗑</Btn>
+            {isSuperAdmin && <Btn sm bg={T.red} onClick={function(){supprimerUser(j.id);}}>🗑</Btn>}
           </div>
         </Card>;
       })}
@@ -2028,7 +2081,7 @@ function BiblioPanel(p) {
 function InterfacePro(p) {
   var T = useTheme();
   var u = p.user;
-  var isAdmin = u.role==="admin";
+  var isAdmin = u.role==="admin"||u.role==="superadmin";
   var sId = isAdmin?null:u.structureId;
   var jeunes = p.users.filter(function(x){return x.role==="jeune"&&(isAdmin||x.structureId===sId);});
   var educs  = p.users.filter(function(x){return x.role==="educateur"&&(isAdmin||x.structureId===sId);});
@@ -2159,7 +2212,7 @@ function InterfacePro(p) {
         {nbAttente>0 && <div style={{background:T.yellow+"22",border:"1px solid "+T.yellowL+"44",borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,color:T.yellowL}}>⏳ {nbAttente} à valider</div>}
         {nbEchDemande>0 && <div style={{background:T.purple+"22",border:"1px solid "+T.purpleL+"44",borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:700,color:T.purpleL}}>🎁 {nbEchDemande} demandes</div>}
         <ThemeToggle isDark={p.isDark} onToggle={p.onToggleTheme}/>
-        {isAdmin && <span role="button" onClick={function(){setChangeMdp({mdpActuel:"",mdpNew:"",mdpNew2:"",showA:false,showN:false,err:""});}} title="Changer mon mot de passe administrateur" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 13px",borderRadius:50,background:T.teal+"22",border:"1.5px solid "+T.teal+"88",color:T.tealL,fontSize:13,fontWeight:700,cursor:"pointer",userSelect:"none",transition:"all .2s"}}>🔑 Mon mot de passe</span>}
+        <span role="button" onClick={function(){setChangeMdp({mdpActuel:"",mdpNew:"",mdpNew2:"",showA:false,showN:false,err:""});}} title="Changer mon mot de passe" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 13px",borderRadius:50,background:T.teal+"22",border:"1.5px solid "+T.teal+"88",color:T.tealL,fontSize:13,fontWeight:700,cursor:"pointer",userSelect:"none",transition:"all .2s"}}>🔑 Mon mot de passe</span>
         {isAdmin && p.onExporterSauvegarde && <span role="button" onClick={p.onExporterSauvegarde} title="Télécharger une sauvegarde JSON des données" style={{display:"inline-flex",alignItems:"center",gap:6,padding:"6px 13px",borderRadius:50,background:"#f59e0b22",border:"1.5px solid #f59e0b88",color:"#f59e0b",fontSize:13,fontWeight:700,cursor:"pointer",userSelect:"none",transition:"all .2s"}}>💾 Sauvegarder</span>}
         <Btn ghost color={T.tx3} sm brdC={T.brd} onClick={p.onLogout}>Déconnexion</Btn>
       </div>
@@ -2620,6 +2673,7 @@ function InterfacePro(p) {
             users={p.users}
             setUsers={p.setUsers}
             objectifs={p.objectifs}
+            currentUser={p.user}
             nf={nf}
             onAddEducateur={function(){setModal("educateur");setFUser({prenom:"",nom:"",login:"",mdp:"",structureId:(p.structures[0]&&p.structures[0].id)||1,avatar:"👨‍🏫"});}}
             onAddJeune={function(){setModal("jeune");setFJeune({pseudo:"",age:"",avatar:"🦁",couleur:T.blue,structureId:(p.structures[0]&&p.structures[0].id)||1,login:"",mdp:"",});}}
@@ -3014,7 +3068,7 @@ function App() {
 
   function handleLogin(u) {
     setCurrentUser(u);
-    if (u.role === "admin") {
+    if (u.role === "admin" || u.role === "superadmin") {
       var heure = new Date().getHours();
       if (heure >= 18) { setTimeout(function(){ setShowBackupReminder(true); }, 1200); }
     }
