@@ -2099,11 +2099,15 @@ function TicketsPanel(p) {
 
   function creerTicket() {
     if(!fTicket.titre.trim()||!fTicket.message.trim()){p.nf("Titre et message obligatoires","error");return;}
-    var t={id:Date.now(),educateurId:u.id,titre:fTicket.titre.trim(),message:fTicket.message.trim(),
-           priorite:fTicket.priorite,statut:"ouvert",date:new Date().toISOString(),reponse:null,reponseDate:null};
-    p.setTickets(function(prev){return [...prev,t];});
-    p.nf("Ticket envoyé à l'administrateur ✅","success");
-    setMode("list"); setFTicket({titre:"",message:"",priorite:"normale"});
+    apiPost("/api/tickets",{titre:fTicket.titre.trim(),message:fTicket.message.trim(),priorite:fTicket.priorite}).then(function(data){
+      if(data.ok){
+        p.setTickets(function(prev){return [...prev,data.ticket];});
+        p.nf("Ticket envoyé à l'administrateur ✅","success");
+        setMode("list"); setFTicket({titre:"",message:"",priorite:"normale"});
+      } else {
+        p.nf(data.error||"Erreur lors de l'envoi","error");
+      }
+    }).catch(function(){p.nf("Impossible de contacter le serveur","error");});
   }
   function changerStatut(id,statut){
     p.setTickets(function(prev){return prev.map(function(t){return t.id===id?Object.assign({},t,{statut:statut}):t;});});

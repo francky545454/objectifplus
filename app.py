@@ -8,13 +8,15 @@ Variables d'environnement requises (Vercel > Settings > Environment Variables) :
   OBJP_SECRET    — chaîne aléatoire secrète pour signer les tokens (≥ 32 chars)
 """
 
-import os, json, hashlib, hmac, secrets, time, base64
+import os, json, hashlib, hmac, secrets, time, base64, urllib.request, urllib.error
 from flask import Flask, request, jsonify, send_from_directory, make_response
 
 # ── Supabase ───────────────────────────────────────────────────────────────────
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "")
 SECRET       = os.environ.get("OBJP_SECRET", "dev-secret-change-me")
+RESEND_KEY   = os.environ.get("RESEND_API_KEY", "")
+NOTIF_EMAIL  = os.environ.get("NOTIF_EMAIL", "")
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 
 if SUPABASE_URL and SUPABASE_KEY:
@@ -240,6 +242,86 @@ def api_auth():
         token = make_token(safe)
         return ok({"ok": True, "user": safe, "token": token})
     return err("Identifiant ou mot de passe incorrect.", 401)
+
+
+# ── Notifications email (Resend) ──────────────────────────────────────────────
+
+def send_ticket_email(ticket, edu_name):
+    """Envoie un email de notification à l'admin quand un nouveau ticket arrive."""
+    if not RESEND_KEY or not NOTIF_EMAIL:
+        return
+    priorite_label = "🔴 URGENT" if ticket.get("priorite") == "urgente" else "🔵 Normale"
+    subject = f"[Objectif+] {'🔴 URGENT — ' if ticket.get('priorite')=='urgente' else ''}Nouveau ticket : {ticket['titre']}"
+    html = f"""
+<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px">
+  <div style="background:#7c3aed;padding:16px 20px;border-radius:10px 10px 0 0">
+    <h2 style="color:#fff;margin:0">🎫 Nouveau ticket — Objectif+</h2>
+  </div>
+  <div style="background:#f9f9f9;padding:20px;border:1px solid #e5e7eb;border-radius:0 0 10px 10px">
+    <p><strong>De :</strong> {edu_name}</p>
+    <p><strong>Titre :</strong> {ticket['titre']}</p>
+    <p><strong>Priorité :</strong> {priorite_label}</p>
+    <p><strong>Message :</strong></p>
+    <blockquote style="background:#fff;border-left:4px solid #7c3aed;padding:10px 16px;margin:8px 0;border-radius:4px;color:#374151">
+      {ticket['message'].replace(chr(10), '<br>')}
+    </blockquote>
+    <a href="https://objectifplus.vercel.app" style="display:inline-block;margin-top:16px;background:#7c3aed;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:bold">
+      Ouvrir Objectif+
+    </a>
+  </div>
+</div>"""
+    try:
+        payload = json.dumps({
+            "from": "Objectif+ <onboarding@resend.dev>",
+            "to": [NOTIF_EMAIL],
+            "subject": subject,
+            "html": html
+        }).encode()
+        req = urllib.request.Request(
+            "https://api.resend.com/emails",
+            data=payload,
+            headers={"Authorization": f"Bearer {RESEND_KEY}", "Content-Type": "application/json"},
+            method="POST"
+        )
+        urllib.request.urlopen(req, timeout=8)
+    except Exception:
+        pass  # Ne pas bloquer si l'email échoue
+
+
+# ── API : tickets ──────────────────────────────────────────────────────────────
+
+@app.route("/api/tickets", methods=["POST"])
+def api_create_ticket():
+    requester = get_requester()
+    if not requester or requester.get("role") not in ("superadmin", "admin", "educateur"):
+        return err("Non autorisé.", 403)
+
+    b = request.get_json(force=True) or {}
+    titre   = b.get("titre",   "").strip()
+    message = b.get("message", "").strip()
+    if not titre or not message:
+        return err("Titre et message obligatoires.")
+
+    ticket = {
+        "id":           int(time.time() * 1000),
+        "educateurId":  requester["id"],
+        "titre":        titre,
+        "message":      message,
+        "priorite":     b.get("priorite", "normale"),
+        "statut":       "ouvert",
+        "date":         time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "reponse":      None,
+        "reponseDate":  None,
+    }
+
+    d = load_data()
+    d.setdefault("tickets", []).append(ticket)
+    save_data(d)
+
+    edu_name = f"{requester.get('prenom','')} {requester.get('nom','')}".strip() or requester.get("login", "")
+    send_ticket_email(ticket, edu_name)
+
+    return ok({"ok": True, "ticket": ticket})
 
 
 # ── API : utilisateurs ─────────────────────────────────────────────────────────
