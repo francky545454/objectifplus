@@ -2082,6 +2082,133 @@ function BiblioPanel(p) {
   </div>;
 }
 
+// ── Système de tickets éducateur → admin ─────────────────────────────────────
+function TicketsPanel(p) {
+  var T = useTheme();
+  var u = p.currentUser;
+  var isAdmin = u.role==="admin"||u.role==="superadmin";
+  var [mode,         setMode]         = useState("list");
+  var [fTicket,      setFTicket]      = useState({titre:"",message:"",priorite:"normale"});
+  var [reponseModal, setReponseModal] = useState(null);
+
+  var myTickets = isAdmin ? p.tickets : p.tickets.filter(function(t){return t.educateurId===u.id;});
+  var sorted    = myTickets.slice().sort(function(a,b){return b.id-a.id;});
+
+  var SCOL = {ouvert:T.orange, traite:T.green, ferme:T.tx3};
+  var SLBL = {ouvert:"🟠 Ouvert", traite:"✅ Traité", ferme:"🔒 Fermé"};
+
+  function creerTicket() {
+    if(!fTicket.titre.trim()||!fTicket.message.trim()){p.nf("Titre et message obligatoires","error");return;}
+    var t={id:Date.now(),educateurId:u.id,titre:fTicket.titre.trim(),message:fTicket.message.trim(),
+           priorite:fTicket.priorite,statut:"ouvert",date:new Date().toISOString(),reponse:null,reponseDate:null};
+    p.setTickets(function(prev){return [...prev,t];});
+    p.nf("Ticket envoyé à l'administrateur ✅","success");
+    setMode("list"); setFTicket({titre:"",message:"",priorite:"normale"});
+  }
+  function changerStatut(id,statut){
+    p.setTickets(function(prev){return prev.map(function(t){return t.id===id?Object.assign({},t,{statut:statut}):t;});});
+  }
+  function enregistrerReponse(){
+    if(!reponseModal.texte.trim()){p.nf("La réponse est vide","error");return;}
+    p.setTickets(function(prev){return prev.map(function(t){
+      return t.id===reponseModal.ticket.id
+        ?Object.assign({},t,{reponse:reponseModal.texte.trim(),reponseDate:new Date().toISOString(),statut:"traite"})
+        :t;
+    });});
+    p.nf("Réponse envoyée ✅","success"); setReponseModal(null);
+  }
+
+  if(mode==="new") return (
+    <div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+        <Btn ghost color={T.tx2} brdC={T.brd} sm onClick={function(){setMode("list");}}>← Retour</Btn>
+        <div style={{fontSize:16,fontWeight:800}}>Nouveau ticket</div>
+      </div>
+      <div style={{display:"flex",flexDirection:"column",gap:14}}>
+        <div>
+          <div style={{fontSize:13,fontWeight:600,color:T.tx2,marginBottom:5}}>Titre *</div>
+          <Inp value={fTicket.titre} onChange={function(e){setFTicket(function(f){return Object.assign({},f,{titre:e.target.value});});}} placeholder="Décris brièvement ta demande ou le problème"/>
+        </div>
+        <div>
+          <div style={{fontSize:13,fontWeight:600,color:T.tx2,marginBottom:5}}>Message *</div>
+          <textarea value={fTicket.message} onChange={function(e){setFTicket(function(f){return Object.assign({},f,{message:e.target.value});});}} placeholder="Décris en détail..." style={{width:"100%",minHeight:110,background:T.bg3,border:"1.5px solid "+T.brd2,borderRadius:10,padding:"10px 14px",fontSize:14,color:T.tx,resize:"vertical",fontFamily:FONT}}/>
+        </div>
+        <div>
+          <div style={{fontSize:13,fontWeight:600,color:T.tx2,marginBottom:5}}>Priorité</div>
+          <div style={{display:"flex",gap:8}}>
+            {[{v:"normale",l:"🔵 Normale"},{v:"urgente",l:"🔴 Urgente"}].map(function(pr){
+              var sel=fTicket.priorite===pr.v;
+              return <Btn key={pr.v} sm ghost={!sel} bg={sel?(pr.v==="urgente"?T.red:T.blue):undefined}
+                color={sel?"#fff":T.tx2} brdC={sel?(pr.v==="urgente"?T.red:T.blue):T.brd}
+                onClick={function(){setFTicket(function(f){return Object.assign({},f,{priorite:pr.v});});}}>{pr.l}</Btn>;
+            })}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:10,marginTop:4}}>
+          <Btn ghost color={T.tx2} brdC={T.brd} onClick={function(){setMode("list");}}>Annuler</Btn>
+          <Btn bg={T.purple} style={{flex:1,justifyContent:"center"}} onClick={creerTicket}>📨 Envoyer à l'administrateur</Btn>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+        <div style={{fontSize:16,fontWeight:800}}>{isAdmin?"📋 Tickets reçus":"🎫 Mes tickets"}</div>
+        {!isAdmin && <Btn bg={T.purple} sm onClick={function(){setMode("new");}}>＋ Nouveau ticket</Btn>}
+      </div>
+      {sorted.length===0 && <div style={{textAlign:"center",padding:"40px 20px",color:T.tx3}}>
+        <div style={{fontSize:40,marginBottom:10}}>📭</div>
+        <div style={{fontWeight:600}}>{isAdmin?"Aucun ticket reçu":"Aucun ticket envoyé"}</div>
+        {!isAdmin && <div style={{fontSize:13,marginTop:6}}>Utilise le bouton ci-dessus pour contacter l'administrateur</div>}
+      </div>}
+      <div style={{display:"flex",flexDirection:"column",gap:10}}>
+        {sorted.map(function(t){
+          var edu=p.users.find(function(x){return x.id===t.educateurId;});
+          var df=function(d){return new Date(d).toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});};
+          return <Card key={t.id} style={{borderLeft:"4px solid "+(t.priorite==="urgente"?T.red:T.blue)}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:8,marginBottom:8}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:6}}>
+                  <Pill c={SCOL[t.statut]||T.tx3}>{SLBL[t.statut]||t.statut}</Pill>
+                  {t.priorite==="urgente"&&<Pill c={T.red}>🔴 Urgent</Pill>}
+                </div>
+                <div style={{fontWeight:700,fontSize:15,marginBottom:2}}>{t.titre}</div>
+                {isAdmin&&edu&&<div style={{fontSize:12,color:T.tx3}}>👤 {edu.prenom} {edu.nom} — {df(t.date)}</div>}
+                {!isAdmin&&<div style={{fontSize:12,color:T.tx3}}>{df(t.date)}</div>}
+              </div>
+            </div>
+            <div style={{fontSize:13,color:T.tx2,background:T.bg3,borderRadius:8,padding:"8px 12px",marginBottom:8,whiteSpace:"pre-wrap"}}>{t.message}</div>
+            {t.reponse&&<div style={{background:T.teal+"18",border:"1px solid "+T.teal+"44",borderRadius:8,padding:"8px 12px",marginBottom:8}}>
+              <div style={{fontSize:11,fontWeight:700,color:T.tealL,marginBottom:4}}>💬 Réponse de l'administrateur</div>
+              <div style={{fontSize:13,color:T.tx,whiteSpace:"pre-wrap"}}>{t.reponse}</div>
+              <div style={{fontSize:11,color:T.tx3,marginTop:4}}>{df(t.reponseDate)}</div>
+            </div>}
+            {isAdmin&&<div style={{display:"flex",gap:8,flexWrap:"wrap",marginTop:4}}>
+              <Btn sm bg={T.teal} onClick={function(){setReponseModal({ticket:t,texte:t.reponse||""});}}>💬 Répondre</Btn>
+              {t.statut==="ouvert"&&<Btn sm bg={T.green} onClick={function(){changerStatut(t.id,"traite");}}>✅ Marquer traité</Btn>}
+              {t.statut!=="ferme"&&<Btn sm ghost color={T.tx3} brdC={T.brd} onClick={function(){changerStatut(t.id,"ferme");}}>🔒 Fermer</Btn>}
+            </div>}
+          </Card>;
+        })}
+      </div>
+      {reponseModal&&<Modal onClose={function(){setReponseModal(null);}} w={480}>
+        <div style={{fontSize:17,fontWeight:800,marginBottom:14}}>💬 Répondre au ticket</div>
+        <div style={{fontSize:13,color:T.tx2,background:T.bg3,borderRadius:8,padding:"8px 12px",marginBottom:14}}>
+          <strong>{reponseModal.ticket.titre}</strong>
+          <div style={{marginTop:4,fontSize:12,color:T.tx3}}>{reponseModal.ticket.message.slice(0,150)}{reponseModal.ticket.message.length>150?"…":""}</div>
+        </div>
+        <textarea value={reponseModal.texte} onChange={function(e){setReponseModal(function(s){return Object.assign({},s,{texte:e.target.value});});}} placeholder="Votre réponse..." style={{width:"100%",minHeight:120,background:T.bg3,border:"1.5px solid "+T.brd2,borderRadius:10,padding:"10px 14px",fontSize:14,color:T.tx,resize:"vertical",fontFamily:FONT}}/>
+        <div style={{display:"flex",gap:10,marginTop:14}}>
+          <Btn ghost color={T.tx2} brdC={T.brd} onClick={function(){setReponseModal(null);}}>Annuler</Btn>
+          <Btn bg={T.teal} style={{flex:1,justifyContent:"center"}} onClick={enregistrerReponse}>✅ Envoyer la réponse</Btn>
+        </div>
+      </Modal>}
+    </div>
+  );
+}
+
 function InterfacePro(p) {
   var T = useTheme();
   var u = p.user;
@@ -2152,6 +2279,7 @@ function InterfacePro(p) {
   var filtObjs = filt==="tous" ? allObjs : allObjs.filter(function(o){return o.statut===filt;});
   var nbAttente = p.objectifs.filter(function(o){return o.statut==="attente_valid"&&jeunes.find(function(j){return j.id===o.jeuneId;});}).length;
   var nbEchDemande = p.echanges.filter(function(e){return e.statut==="demande"&&jeunes.find(function(j){return j.id===e.jeuneId;});}).length;
+  var nbTicketsOuverts = isAdmin ? (p.tickets||[]).filter(function(t){return t.statut==="ouvert";}).length : 0;
 
   function saveObj() {
     if(!fObj.titre||!fObj.jeuneId){nf("Remplis tous les champs obligatoires","error");return;}
@@ -2214,6 +2342,7 @@ function InterfacePro(p) {
     {id:"bibliotheque",ico:"📖", l:"Bibliothèque"},
   ];
   if(isAdmin) tabsDef.push({id:"equipes",ico:"🏛️",l:"Équipes"});
+  tabsDef.push({id:"tickets",ico:"🎫",l:"Tickets",badge:nbTicketsOuverts});
 
   return (
     <div style={{minHeight:"100vh",background:T.bg,fontFamily:FONT}}>
@@ -2696,6 +2825,17 @@ function InterfacePro(p) {
             onAddJeune={function(){setModal("jeune");setFJeune({pseudo:"",age:"",avatar:"🦁",couleur:T.blue,structureId:(p.structures[0]&&p.structures[0].id)||1,login:"",mdp:"",});}}
           />
         </div>}
+
+        {/* ══ TICKETS ══ */}
+        {tab==="tickets" && <div className="fu">
+          <TicketsPanel
+            tickets={p.tickets||[]}
+            setTickets={p.setTickets}
+            currentUser={p.user}
+            users={p.users}
+            nf={nf}
+          />
+        </div>}
       </div>
 
       {/* ══ MODALS ══ */}
@@ -3029,6 +3169,7 @@ function App() {
   var [recompenses, setRecompenses] = useState([]);
   var [echanges,    setEchanges]    = useState([]);
   var [structures,  setStructures]  = useState([]);
+  var [tickets,     setTickets]     = useState([]);
   var [dataLoaded,  setDataLoaded]  = useState(false);
   var saveRef = useRef(null);
 
@@ -3039,6 +3180,7 @@ function App() {
       setRecompenses(d.recompenses||[]);
       setEchanges(d.echanges||[]);
       setStructures(d.structures||[]);
+      setTickets(d.tickets||[]);
       setDataLoaded(true);
     }).catch(function(){ setDataLoaded(true); });
   }, []);
@@ -3048,9 +3190,9 @@ function App() {
     if (!dataLoaded) return;
     if (saveRef.current) clearTimeout(saveRef.current);
     saveRef.current = setTimeout(function(){
-      apiPost("/api/data",{users:users,objectifs:objectifs,recompenses:recompenses,echanges:echanges,structures:structures});
+      apiPost("/api/data",{users:users,objectifs:objectifs,recompenses:recompenses,echanges:echanges,structures:structures,tickets:tickets});
     }, 800);
-  }, [users, objectifs, recompenses, echanges, structures, dataLoaded]);
+  }, [users, objectifs, recompenses, echanges, structures, tickets, dataLoaded]);
 
   var [currentUser,  setCurrentUser]  = useState(null);
   var [notif,        setNotif]        = useState(null);
@@ -3139,6 +3281,8 @@ function App() {
         setRecompenses={setRecompenses}
         echanges={echanges}
         setEchanges={setEchanges}
+        tickets={tickets}
+        setTickets={setTickets}
         onLogout={handleLogout}
         onToggleTheme={toggleTheme}
         isDark={isDark}
