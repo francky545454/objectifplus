@@ -2217,6 +2217,7 @@ function InterfacePro(p) {
   var T = useTheme();
   var u = p.user;
   var isAdmin = u.role==="admin"||u.role==="superadmin";
+  var isSuperAdmin = u.role==="superadmin";
   var sId = isAdmin?null:u.structureId;
   var jeunes = p.users.filter(function(x){return x.role==="jeune"&&(isAdmin||x.structureId===sId);});
   var educs  = p.users.filter(function(x){return x.role==="educateur"&&(isAdmin||x.structureId===sId);});
@@ -2235,6 +2236,7 @@ function InterfacePro(p) {
   var [fJeune,setFJeune]=useState({pseudo:"",age:"",avatar:"🦁",couleur:T.blue,structureId:sId||1,login:"",mdp:""});
   var [fRec,  setFRec]  = useState({titre:"",ico:"🎁",cout:50,description:"",structureId:sId||1});
   var [fUser, setFUser] = useState({prenom:"",nom:"",login:"",mdp:"",structureId:sId||1,avatar:"👨‍🏫"});
+  var [fAdmin,setFAdmin]= useState({prenom:"",nom:"",login:"",mdp:"",avatar:"⚙️",couleur:T.purple});
 
   function nf(msg,type){setNotif({msg,type});setTimeout(function(){setNotif(null);},3200);}
 
@@ -2327,6 +2329,20 @@ function InterfacePro(p) {
       else{nf(data.error||"Erreur","error");}
     }).catch(function(){nf("Impossible de contacter le serveur.","error");});
   }
+  function saveAdmin() {
+    if(!fAdmin.prenom||!fAdmin.login||!fAdmin.mdp){nf("Tous les champs sont obligatoires","error");return;}
+    if(fAdmin.mdp.length<6){nf("Le mot de passe doit faire au moins 6 caractères","error");return;}
+    apiPost("/api/users",{login:fAdmin.login,mdp:fAdmin.mdp,role:"admin",prenom:fAdmin.prenom,nom:fAdmin.nom,avatar:fAdmin.avatar||"⚙️",couleur:fAdmin.couleur||T.purple,structureId:null}).then(function(data){
+      if(data.ok){p.setUsers(function(prev){return [...prev,data.user];});setModal(null);nf("✅ Administrateur créé !","success");}
+      else{nf(data.error||"Erreur","error");}
+    }).catch(function(){nf("Impossible de contacter le serveur.","error");});
+  }
+  function supprimerAdmin(uid) {
+    apiPost("/api/data",{users:p.users.filter(function(u){return u.id!==uid;})}).then(function(){
+      p.setUsers(function(prev){return prev.filter(function(u){return u.id!==uid;});});
+      nf("Administrateur supprimé","warn");
+    }).catch(function(){nf("Erreur lors de la suppression","error");});
+  }
   function saveRec() {
     if(!fRec.titre){nf("Titre obligatoire","error");return;}
     var n={id:Date.now(),titre:fRec.titre,ico:fRec.ico,cout:Number(fRec.cout),description:fRec.description,structureId:fRec.structureId?Number(fRec.structureId):null,creePar:u.id};
@@ -2346,6 +2362,7 @@ function InterfacePro(p) {
     {id:"bibliotheque",ico:"📖", l:"Bibliothèque"},
   ];
   if(isAdmin) tabsDef.push({id:"equipes",ico:"🏛️",l:"Équipes"});
+  if(isSuperAdmin) tabsDef.push({id:"admins",ico:"🛡️",l:"Admins"});
   tabsDef.push({id:"tickets",ico:"🎫",l:"Tickets",badge:nbTicketsOuverts});
 
   return (
@@ -2830,6 +2847,33 @@ function InterfacePro(p) {
           />
         </div>}
 
+        {/* ══ ADMINS (superadmin uniquement) ══ */}
+        {tab==="admins" && isSuperAdmin && <div className="fu">
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+            <div>
+              <div style={{fontSize:18,fontWeight:800}}>🛡️ Gestion des administrateurs</div>
+              <div style={{fontSize:13,color:T.tx2,marginTop:4}}>Seul le super administrateur peut créer ou supprimer des comptes administrateurs.</div>
+            </div>
+            <Btn bg={T.purple} onClick={function(){setModal("admin");setFAdmin({prenom:"",nom:"",login:"",mdp:"",avatar:"⚙️",couleur:T.purple});}}>+ Nouvel admin</Btn>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {p.users.filter(function(x){return x.role==="admin"||x.role==="superadmin";}).map(function(adm){
+              var isMe = adm.id===u.id;
+              return <Card key={adm.id}>
+                <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                  <div style={{width:44,height:44,borderRadius:12,background:(adm.couleur||T.purple)+"33",border:"2px solid "+(adm.couleur||T.purple)+"66",display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{adm.avatar||"⚙️"}</div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:15,fontWeight:800}}>{adm.prenom}{adm.nom?" "+adm.nom:""} {isMe&&<span style={{fontSize:11,color:T.tealL,fontWeight:600}}>(vous)</span>}</div>
+                    <div style={{fontSize:12,color:T.tx2,marginTop:2}}>🔑 {adm.login}</div>
+                  </div>
+                  <Pill c={adm.role==="superadmin"?T.orangeL:T.purpleL}>{adm.role==="superadmin"?"👑 Super Admin":"🛡️ Admin"}</Pill>
+                  {adm.role==="admin" && !isMe && <Btn sm bg={T.red} onClick={function(){supprimerAdmin(adm.id);}}>🗑 Supprimer</Btn>}
+                </div>
+              </Card>;
+            })}
+          </div>
+        </div>}
+
         {/* ══ TICKETS ══ */}
         {tab==="tickets" && <div className="fu">
           <TicketsPanel
@@ -3060,6 +3104,33 @@ function InterfacePro(p) {
           <div style={{display:"flex",gap:10,marginTop:4}}>
             <Btn ghost color={T.tx2} brdC={T.brd} onClick={function(){setModal(null);}}>Annuler</Btn>
             <Btn bg={T.blue} style={{flex:1,justifyContent:"center"}} onClick={saveEducateur}>✓ Créer le compte éducateur</Btn>
+          </div>
+        </div>
+      </Modal>}
+
+      {/* ══ MODAL NOUVEL ADMINISTRATEUR (superadmin uniquement) ══ */}
+      {modal==="admin" && isSuperAdmin && <Modal onClose={function(){setModal(null);}} w={480}>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+          <div style={{width:52,height:52,borderRadius:14,background:T.purple+"30",border:"2px solid "+T.purple,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>🛡️</div>
+          <div>
+            <div style={{fontSize:18,fontWeight:800}}>Nouvel administrateur</div>
+            <div style={{fontSize:12,color:T.tx2}}>Accès complet sauf gestion des super admins</div>
+          </div>
+        </div>
+        <div style={{display:"flex",flexDirection:"column",gap:11}}>
+          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+            <div><div style={{fontSize:13,color:T.tx2,marginBottom:5,fontWeight:600}}>Prénom *</div><Inp value={fAdmin.prenom} onChange={function(e){setFAdmin(function(f){return Object.assign({},f,{prenom:e.target.value});});}} placeholder="Prénom"/></div>
+            <div><div style={{fontSize:13,color:T.tx2,marginBottom:5,fontWeight:600}}>Nom</div><Inp value={fAdmin.nom} onChange={function(e){setFAdmin(function(f){return Object.assign({},f,{nom:e.target.value});});}} placeholder="Nom"/></div>
+          </div>
+          <div><div style={{fontSize:13,color:T.tx2,marginBottom:5,fontWeight:600}}>Identifiant de connexion *</div><Inp value={fAdmin.login} onChange={function(e){setFAdmin(function(f){return Object.assign({},f,{login:e.target.value});});}} placeholder="ex: j.dupont"/></div>
+          <div><div style={{fontSize:13,color:T.tx2,marginBottom:5,fontWeight:600}}>Mot de passe * <span style={{fontWeight:400,color:T.tx3}}>(min. 6 caractères)</span></div><Inp type="password" value={fAdmin.mdp} onChange={function(e){setFAdmin(function(f){return Object.assign({},f,{mdp:e.target.value});});}} placeholder="Mot de passe"/></div>
+          <div style={{background:T.yellow+"15",border:"1px solid "+T.yellowL+"44",borderRadius:10,padding:"10px 14px",fontSize:12,color:T.yellowL,display:"flex",gap:8,alignItems:"flex-start"}}>
+            <span style={{fontSize:16,flexShrink:0}}>⚠️</span>
+            <span>Créez uniquement des comptes pour des personnes de confiance. Un administrateur peut gérer l'ensemble des jeunes, éducateurs et récompenses.</span>
+          </div>
+          <div style={{display:"flex",gap:10,marginTop:4}}>
+            <Btn ghost color={T.tx2} brdC={T.brd} onClick={function(){setModal(null);}}>Annuler</Btn>
+            <Btn bg={T.purple} style={{flex:1,justifyContent:"center"}} onClick={saveAdmin}>✓ Créer l'administrateur</Btn>
           </div>
         </div>
       </Modal>}
