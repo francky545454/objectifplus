@@ -1683,6 +1683,7 @@ function EquipesPanel(p) {
   var [showModalSt,  setShowModalSt]  = useState(false);
   var [resetMdp,        setResetMdp]        = useState(null); // {user, newMdp, showMdp}
   var [localResetCodes, setLocalResetCodes] = useState({}); // {userId: {code, createdAt}}
+  var [editLogin, setEditLogin] = useState(null); // {user, newLogin}
   var [fStruct, setFStruct] = useState({nom:"",ville:"",dept:"",emoji:"🏛️",couleur:T.purple});
 
   function saveStruct() {
@@ -1714,6 +1715,14 @@ function EquipesPanel(p) {
     if(userId===p.currentUser.id){p.nf("Impossible de supprimer votre propre compte","error");return;}
     p.setUsers(function(prev){return prev.filter(function(u){return u.id!==userId;});});
     p.nf("Compte supprimé","warn");
+  }
+  function sauvegarderLogin() {
+    if(!editLogin||!editLogin.newLogin.trim()){p.nf("Identifiant vide","error");return;}
+    var nl=editLogin.newLogin.trim().toLowerCase();
+    if(p.users.some(function(x){return x.id!==editLogin.user.id&&x.login.toLowerCase()===nl;})){p.nf("Cet identifiant est déjà utilisé","error");return;}
+    p.setUsers(function(prev){return prev.map(function(u){return u.id===editLogin.user.id?Object.assign({},u,{login:nl}):u;});});
+    p.nf("✏️ Identifiant modifié !","success");
+    setEditLogin(null);
   }
   function confirmerResetMdp() {
     if(!resetMdp||!resetMdp.newMdp||resetMdp.newMdp.length<6){p.nf("Le mot de passe doit faire au moins 6 caractères","error");return;}
@@ -1798,6 +1807,7 @@ function EquipesPanel(p) {
             </Sel>
             <Btn sm bg={T.purple} onClick={function(){setEditDroits({user:edu,droits:Object.assign({},DROITS_DEF,edu.droits||{})});}}>⚙️ Droits</Btn>
             <Btn sm bg={T.teal} onClick={function(){setResetMdp({user:edu,newMdp:"",showMdp:false});}}>🔑 MDP</Btn>
+            <Btn sm bg="#6366f1" onClick={function(){setEditLogin({user:edu,newLogin:edu.login});}}>✏️ Login</Btn>
             {isSuperAdmin && <Btn sm bg={T.red} onClick={function(){supprimerUser(edu.id);}}>🗑</Btn>}
           </div>
           <div style={{marginTop:10,display:"flex",flexWrap:"wrap",gap:5}}>
@@ -1837,6 +1847,7 @@ function EquipesPanel(p) {
               {tokenActif?"🔄 Nouveau code":"🔑 Générer code"}
             </Btn>
             <Btn sm bg={T.orange} onClick={function(){setResetMdp({user:j,newMdp:"",showMdp:false});}}>✏️ MDP</Btn>
+            <Btn sm bg="#6366f1" onClick={function(){setEditLogin({user:j,newLogin:j.login});}}>✏️ Login</Btn>
             {isSuperAdmin && <Btn sm bg={T.red} onClick={function(){supprimerUser(j.id);}}>🗑</Btn>}
           </div>
         </Card>;
@@ -1928,6 +1939,28 @@ function EquipesPanel(p) {
           <Btn ghost color={T.tx2} brdC={T.brd} onClick={function(){setShowModalSt(false);}}>Annuler</Btn>
           <Btn bg={T.purple} style={{flex:1,justifyContent:"center"}} onClick={saveStruct}>✓ Créer la structure</Btn>
         </div>
+      </div>
+    </Modal>}
+
+    {/* Modal modification identifiant */}
+    {editLogin && <Modal onClose={function(){setEditLogin(null);}} w={420}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <div style={{width:52,height:52,borderRadius:14,background:"#6366f130",border:"2px solid #6366f1",display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{editLogin.user.avatar}</div>
+        <div>
+          <div style={{fontSize:17,fontWeight:800}}>Modifier l'identifiant</div>
+          <div style={{fontSize:13,color:T.tx2}}>{editLogin.user.prenom} {editLogin.user.nom||""} · <span style={{color:"#6366f1"}}>🔑 {editLogin.user.login}</span></div>
+        </div>
+      </div>
+      <div style={{background:"#6366f115",border:"1px solid #6366f144",borderRadius:10,padding:"10px 14px",marginBottom:16,fontSize:12,color:"#a5b4fc"}}>
+        ℹ️ Seul l'identifiant de connexion sera modifié. Le mot de passe et toutes les données sont conservées.
+      </div>
+      <div style={{marginBottom:16}}>
+        <div style={{fontSize:13,color:T.tx2,marginBottom:6,fontWeight:600}}>Nouvel identifiant *</div>
+        <Inp value={editLogin.newLogin} onChange={function(e){setEditLogin(function(prev){return Object.assign({},prev,{newLogin:e.target.value});});}} placeholder="ex: m.lefebvre"/>
+      </div>
+      <div style={{display:"flex",gap:10}}>
+        <Btn ghost color={T.tx2} brdC={T.brd} onClick={function(){setEditLogin(null);}}>Annuler</Btn>
+        <Btn bg="#6366f1" style={{flex:1,justifyContent:"center"}} onClick={sauvegarderLogin}>✏️ Enregistrer l'identifiant</Btn>
       </div>
     </Modal>}
 
@@ -2229,6 +2262,7 @@ function InterfacePro(p) {
   var [modal,    setModal]    = useState(null);
   var [filt,     setFilt]     = useState("tous"); // tous|en_cours|attente|valide
   var [filtStruct,setFiltStruct]=useState(null);
+  var [filtJeuneStat,setFiltJeuneStat]=useState("tous");
   var [changeMdp, setChangeMdp] = useState(null); // {mdpActuel:"", mdpNew:"", mdpNew2:"", showA:false, showN:false}
   var [localResetCodes, setLocalResetCodes] = useState({}); // {userId: {code, createdAt}}
 
@@ -2696,44 +2730,152 @@ function InterfacePro(p) {
         </div>}
 
         {/* ══ STATS ══ */}
-        {tab==="stats" && <div className="fu">
-          <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>📊 Statistiques</div>
-          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10,marginBottom:20}}>
-            {[
-              {ico:"👥",v:jeunes.length,l:"Jeunes",c:T.blue},
-              {ico:"🎯",v:allObjs.length,l:"Objectifs",c:T.purple},
-              {ico:"✅",v:allObjs.filter(function(o){return o.statut==="valide";}).length,l:"Validés",c:T.green},
-              {ico:"⏳",v:nbAttente,l:"À valider",c:T.yellow},
-              {ico:"🎁",v:p.echanges.filter(function(e){return e.statut==="accordee"&&jeunes.find(function(j){return j.id===e.jeuneId;});}).length,l:"Récompenses",c:T.pink},
-            ].map(function(s,i){
-              return <Card key={i} style={{textAlign:"center"}}>
-                <div style={{fontSize:26,marginBottom:6}}>{s.ico}</div>
-                <div style={{fontFamily:FONT_D,fontSize:26,color:s.c}}>{s.v}</div>
-                <div style={{fontSize:11,color:T.tx3}}>{s.l}</div>
-              </Card>;
-            })}
-          </div>
-          <Card>
-            <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>🏆 Classement des jeunes</div>
-            {[...jeunes].sort(function(a,b){return getPoints(b.id,p.objectifs)-getPoints(a.id,p.objectifs);}).map(function(j,i){
-              var pts=getPoints(j.id,p.objectifs);
-              var niv=getNiveau(pts);
-              var maxPts=Math.max(1,getPoints(jeunes[0].id,p.objectifs));
-              return <div key={j.id} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:"1px solid "+T.brd}}>
-                <div style={{width:28,textAlign:"center",fontFamily:FONT_D,fontSize:15,color:i===0?T.yellowL:i===1?T.tx2:i===2?T.orangeL:T.tx3}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":"#"+(i+1)}</div>
-                <Ava size={30} ico={j.avatar} c={j.couleur}/>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:700}}>{j.prenom}</div>
-                  <Bar val={pts} max={maxPts} c={j.couleur} c2={j.couleur} h={4}/>
+        {tab==="stats" && (function(){
+          var statCols={"valide":"#22c55e","en_cours":"#1a6bff","attente_valid":"#eab308","refuse":"#e03a3a"};
+          var statLbls={"valide":"✅ Validé","en_cours":"🔵 En cours","attente_valid":"⏳ Attente","refuse":"❌ Refusé"};
+          // Tous les objectifs de la structure de l'éducateur (indépendant de selJ)
+          var sBaseObjs=p.objectifs.filter(function(o){return !!jeunes.find(function(j){return j.id===o.jeuneId;});});
+          var sObjs=filtJeuneStat==="tous"?sBaseObjs:sBaseObjs.filter(function(o){return o.jeuneId===Number(filtJeuneStat);});
+          var sSorted=[].concat(sObjs).sort(function(a,b){return b.id-a.id;});
+          // CPS
+          var cpsStat={};
+          CPS_ALL.forEach(function(c){cpsStat[c.id]={total:0,valide:0};});
+          sObjs.forEach(function(o){(o.cps||[]).forEach(function(cid){if(cpsStat[cid]){cpsStat[cid].total++;if(o.statut==="valide")cpsStat[cid].valide++;}});});
+          var cpsUsed=CPS_ALL.filter(function(c){return cpsStat[c.id].total>0;});
+          var bestCps=cpsUsed.length>0?cpsUsed.reduce(function(best,c){
+            if(!best)return c;
+            var br=cpsStat[best.id].valide/Math.max(1,cpsStat[best.id].total);
+            var cr=cpsStat[c.id].valide/Math.max(1,cpsStat[c.id].total);
+            return cr>br||(cr===br&&cpsStat[c.id].total>cpsStat[best.id].total)?c:best;
+          },null):null;
+          var worstCps=cpsUsed.length>1?cpsUsed.reduce(function(worst,c){
+            if(!worst)return c;
+            var wr=cpsStat[worst.id].valide/Math.max(1,cpsStat[worst.id].total);
+            var cr=cpsStat[c.id].valide/Math.max(1,cpsStat[c.id].total);
+            return cr<wr?c:worst;
+          },null):null;
+          if(bestCps&&worstCps&&bestCps.id===worstCps.id)worstCps=null;
+
+          return <div className="fu">
+            <div style={{fontSize:18,fontWeight:800,marginBottom:20}}>📊 Statistiques</div>
+
+            {/* KPIs */}
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(150px,1fr))",gap:10,marginBottom:20}}>
+              {[
+                {ico:"👥",v:jeunes.length,l:"Jeunes",c:T.blue},
+                {ico:"🎯",v:sBaseObjs.length,l:"Objectifs",c:T.purple},
+                {ico:"✅",v:sBaseObjs.filter(function(o){return o.statut==="valide";}).length,l:"Validés",c:T.green},
+                {ico:"⏳",v:nbAttente,l:"À valider",c:T.yellow},
+                {ico:"🎁",v:p.echanges.filter(function(e){return e.statut==="accordee"&&jeunes.find(function(j){return j.id===e.jeuneId;});}).length,l:"Récompenses",c:T.pink},
+              ].map(function(s,i){
+                return <Card key={i} style={{textAlign:"center"}}>
+                  <div style={{fontSize:26,marginBottom:6}}>{s.ico}</div>
+                  <div style={{fontFamily:FONT_D,fontSize:26,color:s.c}}>{s.v}</div>
+                  <div style={{fontSize:11,color:T.tx3}}>{s.l}</div>
+                </Card>;
+              })}
+            </div>
+
+            {/* Filtre par jeune */}
+            <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
+              <span style={{fontSize:13,fontWeight:700,color:T.tx2}}>Filtrer par jeune :</span>
+              <select value={filtJeuneStat} onChange={function(e){setFiltJeuneStat(e.target.value);}} style={{background:T.bg3,border:"1px solid "+T.brd2,borderRadius:9,padding:"7px 12px",fontSize:13,color:T.tx}}>
+                <option value="tous">Tous les jeunes</option>
+                {jeunes.map(function(j){return <option key={j.id} value={String(j.id)}>{j.avatar} {j.prenom}</option>;})}
+              </select>
+              <span style={{fontSize:12,color:T.tx3}}>{sSorted.length} objectif(s)</span>
+              {filtJeuneStat!=="tous"&&<span role="button" onClick={function(){setFiltJeuneStat("tous");}} style={{fontSize:12,color:T.purpleL,cursor:"pointer",textDecoration:"underline"}}>Voir tous</span>}
+            </div>
+
+            {/* CPS mise en exergue */}
+            {cpsUsed.length>0&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:16}}>
+              {bestCps&&<div style={{background:"#22c55e18",border:"1px solid #22c55e44",borderRadius:12,padding:"12px 16px",borderLeft:"4px solid #22c55e"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#22c55e",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🏆 CPS la plus réussie</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:22}}>{bestCps.ico}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:800}}>{bestCps.label}</div>
+                    <div style={{fontSize:10,color:bestCps.familleCouleur,fontWeight:600}}>{bestCps.familleLabel}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontFamily:FONT_D,fontSize:20,color:"#22c55e"}}>{Math.round(cpsStat[bestCps.id].valide/Math.max(1,cpsStat[bestCps.id].total)*100)}%</div>
+                    <div style={{fontSize:10,color:T.tx3}}>{cpsStat[bestCps.id].valide}/{cpsStat[bestCps.id].total} validés</div>
+                  </div>
                 </div>
-                <div style={{textAlign:"right"}}>
-                  <div style={{fontFamily:FONT_D,fontSize:15,color:T.yellowL}}>{pts}</div>
-                  <div style={{fontSize:10,color:T.tx3}}>{niv.ico}</div>
+              </div>}
+              {worstCps&&<div style={{background:"#e03a3a18",border:"1px solid #e03a3a44",borderRadius:12,padding:"12px 16px",borderLeft:"4px solid #e03a3a"}}>
+                <div style={{fontSize:11,fontWeight:700,color:"#e03a3a",textTransform:"uppercase",letterSpacing:1,marginBottom:8}}>🔴 CPS la moins réussie</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:22}}>{worstCps.ico}</span>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:800}}>{worstCps.label}</div>
+                    <div style={{fontSize:10,color:worstCps.familleCouleur,fontWeight:600}}>{worstCps.familleLabel}</div>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontFamily:FONT_D,fontSize:20,color:"#e03a3a"}}>{Math.round(cpsStat[worstCps.id].valide/Math.max(1,cpsStat[worstCps.id].total)*100)}%</div>
+                    <div style={{fontSize:10,color:T.tx3}}>{cpsStat[worstCps.id].valide}/{cpsStat[worstCps.id].total} validés</div>
+                  </div>
                 </div>
-              </div>;
-            })}
-          </Card>
-        </div>}
+              </div>}
+            </div>}
+
+            {/* Objectifs — ordre chronologique inverse */}
+            <Card style={{marginBottom:16}}>
+              <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>📋 Objectifs — du plus récent au plus ancien</div>
+              {sSorted.length===0&&<div style={{color:T.tx3,fontSize:13,textAlign:"center",padding:"20px 0"}}>Aucun objectif pour cette sélection.</div>}
+              <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                {sSorted.map(function(o){
+                  var j=jeunes.find(function(x){return x.id===o.jeuneId;});
+                  var cat=CATS.find(function(c){return c.id===o.cat;});
+                  var sc=statCols[o.statut]||T.tx2;
+                  var dateCreation=new Date(o.id).toLocaleDateString("fr-FR");
+                  return <div key={o.id} style={{background:T.bg3,borderRadius:10,padding:"10px 14px",border:"1px solid "+T.brd,borderLeft:"3px solid "+sc}}>
+                    <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:700,marginBottom:4}}>{o.titre}</div>
+                        <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+                          <span style={{padding:"2px 8px",borderRadius:20,background:sc+"22",color:sc,fontSize:11,fontWeight:700}}>{statLbls[o.statut]}</span>
+                          {cat&&<span style={{padding:"2px 8px",borderRadius:20,background:cat.c+"22",color:cat.c,fontSize:11,fontWeight:700}}>{cat.ico} {cat.label}</span>}
+                          {j&&filtJeuneStat==="tous"&&<span style={{padding:"2px 8px",borderRadius:20,background:"rgba(255,255,255,.05)",color:T.tx2,fontSize:11}}>{j.avatar} {j.prenom}</span>}
+                        </div>
+                        {o.cps&&o.cps.length>0&&<div style={{display:"flex",flexWrap:"wrap",gap:4,marginTop:5}}>
+                          {o.cps.map(function(cid){var cp=getCPS(cid);return cp?<span key={cid} style={{fontSize:10,padding:"1px 6px",borderRadius:20,background:cp.familleCouleur+"22",color:cp.familleCouleur,border:"1px solid "+cp.familleCouleur+"44",fontWeight:600}}>{cp.ico} {cp.label}</span>:null;})}
+                        </div>}
+                      </div>
+                      <div style={{textAlign:"right",flexShrink:0}}>
+                        <div style={{fontFamily:FONT_D,fontSize:16,color:"#eab308"}}>{o.pts} pts</div>
+                        <div style={{fontSize:10,color:T.tx3}}>Créé le {dateCreation}</div>
+                        {o.dateEch&&<div style={{fontSize:10,color:T.tx3}}>Échéance : {o.dateEch}</div>}
+                      </div>
+                    </div>
+                  </div>;
+                })}
+              </div>
+            </Card>
+
+            {/* Classement des jeunes (si pas de filtre) */}
+            {filtJeuneStat==="tous"&&jeunes.length>0&&<Card>
+              <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>🏆 Classement des jeunes</div>
+              {[...jeunes].sort(function(a,b){return getPoints(b.id,p.objectifs)-getPoints(a.id,p.objectifs);}).map(function(j,i){
+                var pts=getPoints(j.id,p.objectifs);
+                var niv=getNiveau(pts);
+                var maxPts=Math.max(1,...jeunes.map(function(x){return getPoints(x.id,p.objectifs);}));
+                return <div key={j.id} style={{display:"flex",alignItems:"center",gap:12,padding:"8px 0",borderBottom:"1px solid "+T.brd}}>
+                  <div style={{width:28,textAlign:"center",fontFamily:FONT_D,fontSize:15,color:i===0?T.yellowL:i===1?T.tx2:i===2?T.orangeL:T.tx3}}>{i===0?"🥇":i===1?"🥈":i===2?"🥉":"#"+(i+1)}</div>
+                  <Ava size={30} ico={j.avatar} c={j.couleur}/>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:13,fontWeight:700}}>{j.prenom}</div>
+                    <Bar val={pts} max={maxPts} c={j.couleur} c2={j.couleur} h={4}/>
+                  </div>
+                  <div style={{textAlign:"right"}}>
+                    <div style={{fontFamily:FONT_D,fontSize:15,color:T.yellowL}}>{pts}</div>
+                    <div style={{fontSize:10,color:T.tx3}}>{niv.ico}</div>
+                  </div>
+                </div>;
+              })}
+            </Card>}
+          </div>;
+        })()}
 
         {/* ══ GRILLE DE COTATION ══ */}
         {tab==="grille" && <div className="fu">
@@ -3250,11 +3392,29 @@ function App() {
 
   useEffect(function(){
     apiGet("/api/data").then(function(d){
-      setUsers(d.users||[]);
+      // Normalise les IDs en nombres pour éviter les erreurs de comparaison stricte (=== )
+      // quand structureId est stocké comme chaîne dans la base
+      var normStructures = (d.structures||[]).map(function(s){
+        return Object.assign({}, s, {id: s.id != null ? Number(s.id) : s.id});
+      });
+      var structureIdSet = new Set(normStructures.map(function(s){return s.id;}));
+      var normUsers = (d.users||[]).map(function(u){
+        var sid = u.structureId != null ? Number(u.structureId) : null;
+        // Si le structureId ne correspond à aucune structure existante et qu'il n'y a qu'une
+        // seule structure, on rattache automatiquement (répare les refs orphelines)
+        if(sid !== null && !structureIdSet.has(sid) && normStructures.length === 1) {
+          sid = normStructures[0].id;
+        }
+        return Object.assign({}, u, {
+          id: u.id != null ? Number(u.id) : u.id,
+          structureId: sid
+        });
+      });
+      setUsers(normUsers);
       setObjectifs(d.objectifs||[]);
       setRecompenses(d.recompenses||[]);
       setEchanges(d.echanges||[]);
-      setStructures(d.structures||[]);
+      setStructures(normStructures);
       setTickets(d.tickets||[]);
       setDataLoaded(true);
     }).catch(function(){ setDataLoaded(true); });
