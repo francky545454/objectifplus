@@ -62,8 +62,23 @@ const FONT = "'Nunito', sans-serif";
 const FONT_D = "'Fredoka One', cursive";
 
 // ── Connexion serveur ─────────────────────────────────────────────────────────
-function getToken() { try{return sessionStorage.getItem("objp-token")||"";}catch(e){return "";} }
-function setToken(t) { try{if(t)sessionStorage.setItem("objp-token",t);else sessionStorage.removeItem("objp-token");}catch(e){} }
+function getToken() { try{return localStorage.getItem("objp-token")||"";}catch(e){return "";} }
+function setToken(t) { try{if(t)localStorage.setItem("objp-token",t);else localStorage.removeItem("objp-token");}catch(e){} }
+
+// Décode le token stocké localement pour restaurer la session après F5
+// (pas besoin de revérifier la signature côté client — le serveur le fera à chaque appel API)
+function decodeStoredToken() {
+  var t = getToken();
+  if (!t) return null;
+  try {
+    var dataPart = t.split(".")[0];
+    var pad = "=".repeat((4 - dataPart.length % 4) % 4);
+    var payload = JSON.parse(atob(dataPart.replace(/-/g,"+").replace(/_/g,"/")+pad));
+    if (payload.exp > Date.now() / 1000) return payload.u; // token encore valide
+    setToken(null); // token expiré → on nettoie
+    return null;
+  } catch(e) { return null; }
+}
 function apiGet(path) {
   return fetch(path,{headers:{"Authorization":"Bearer "+getToken()}}).then(function(r){return r.json();});
 }
@@ -3433,6 +3448,10 @@ function App() {
 
   useEffect(function(){
     apiGet("/api/data").then(function(d){
+      // Si le serveur renvoie une erreur d'authentification, on nettoie la session
+      if (d.error && (d.error.toLowerCase().includes("authentif") || d.error.toLowerCase().includes("token"))) {
+        setToken(null); setCurrentUser(null); setDataLoaded(true); return;
+      }
       // Normalise les IDs en nombres pour éviter les erreurs de comparaison stricte (=== )
       // quand structureId est stocké comme chaîne dans la base
       var normStructures = (d.structures||[]).map(function(s){
@@ -3470,7 +3489,8 @@ function App() {
     }, 800);
   }, [users, objectifs, recompenses, echanges, structures, tickets, dataLoaded]);
 
-  var [currentUser,  setCurrentUser]  = useState(null);
+  // Restaure la session depuis le token local (survit aux F5 et fermetures d'onglet)
+  var [currentUser,  setCurrentUser]  = useState(function(){ return decodeStoredToken(); });
   var [notif,        setNotif]        = useState(null);
 
   function notify(msg,type){setNotif({msg,type});setTimeout(function(){setNotif(null);},3200);}
