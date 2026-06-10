@@ -1684,6 +1684,7 @@ function EquipesPanel(p) {
   var [resetMdp,        setResetMdp]        = useState(null); // {user, newMdp, showMdp}
   var [localResetCodes, setLocalResetCodes] = useState({}); // {userId: {code, createdAt}}
   var [editLogin, setEditLogin] = useState(null); // {user, newLogin}
+  var [confirmSupprUser, setConfirmSupprUser] = useState(null); // user à supprimer
   var [fStruct, setFStruct] = useState({nom:"",ville:"",dept:"",emoji:"🏛️",couleur:T.purple});
 
   function saveStruct() {
@@ -1710,11 +1711,26 @@ function EquipesPanel(p) {
     p.setUsers(function(prev){return prev.map(function(u){return u.id===userId?Object.assign({},u,{structureId:Number(newStructId)}):u;});});
     p.nf("Affectation mise à jour","success");
   }
-  function supprimerUser(userId) {
+  function supprimerUser(user) {
     if(!p.currentUser||p.currentUser.role!=="superadmin"){p.nf("Seul le super-administrateur peut supprimer des comptes","error");return;}
-    if(userId===p.currentUser.id){p.nf("Impossible de supprimer votre propre compte","error");return;}
-    p.setUsers(function(prev){return prev.filter(function(u){return u.id!==userId;});});
-    p.nf("Compte supprimé","warn");
+    if(user.id===p.currentUser.id){p.nf("Impossible de supprimer votre propre compte","error");return;}
+    setConfirmSupprUser(user);
+  }
+  function confirmerSupprUser() {
+    if(!confirmSupprUser) return;
+    var uid = confirmSupprUser.id;
+    fetch("/api/users/"+uid, {method:"DELETE", headers:{"Authorization":"Bearer "+getToken()}})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.ok || d.success){
+          p.setUsers(function(prev){return prev.filter(function(u){return u.id!==uid;});});
+          p.nf("Compte supprimé","warn");
+        } else {
+          p.nf(d.error||"Erreur lors de la suppression","error");
+        }
+        setConfirmSupprUser(null);
+      })
+      .catch(function(){p.nf("Erreur réseau","error"); setConfirmSupprUser(null);});
   }
   function sauvegarderLogin() {
     if(!editLogin||!editLogin.newLogin.trim()){p.nf("Identifiant vide","error");return;}
@@ -1808,7 +1824,7 @@ function EquipesPanel(p) {
             <Btn sm bg={T.purple} onClick={function(){setEditDroits({user:edu,droits:Object.assign({},DROITS_DEF,edu.droits||{})});}}>⚙️ Droits</Btn>
             <Btn sm bg={T.teal} onClick={function(){setResetMdp({user:edu,newMdp:"",showMdp:false});}}>🔑 MDP</Btn>
             <Btn sm bg="#6366f1" onClick={function(){setEditLogin({user:edu,newLogin:edu.login});}}>✏️ Login</Btn>
-            {isSuperAdmin && <Btn sm bg={T.red} onClick={function(){supprimerUser(edu.id);}}>🗑</Btn>}
+            {isSuperAdmin && <Btn sm bg={T.red} onClick={function(){supprimerUser(edu);}}>🗑</Btn>}
           </div>
           <div style={{marginTop:10,display:"flex",flexWrap:"wrap",gap:5}}>
             {DROITS_LABELS.map(function(d){
@@ -1848,11 +1864,36 @@ function EquipesPanel(p) {
             </Btn>
             <Btn sm bg={T.orange} onClick={function(){setResetMdp({user:j,newMdp:"",showMdp:false});}}>✏️ MDP</Btn>
             <Btn sm bg="#6366f1" onClick={function(){setEditLogin({user:j,newLogin:j.login});}}>✏️ Login</Btn>
-            {isSuperAdmin && <Btn sm bg={T.red} onClick={function(){supprimerUser(j.id);}}>🗑</Btn>}
+            {isSuperAdmin && <Btn sm bg={T.red} onClick={function(){supprimerUser(j);}}>🗑</Btn>}
           </div>
         </Card>;
       })}
     </div>}
+
+    {/* Modal confirmation suppression utilisateur */}
+    {confirmSupprUser && <Modal onClose={function(){setConfirmSupprUser(null);}} w={420}>
+      <div style={{textAlign:"center"}}>
+        <div style={{fontSize:44,marginBottom:12}}>⚠️</div>
+        <div style={{fontSize:17,fontWeight:800,marginBottom:8}}>
+          Supprimer {confirmSupprUser.prenom} {confirmSupprUser.nom||""}  ?
+        </div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:10,marginBottom:12}}>
+          <div style={{width:44,height:44,borderRadius:12,background:confirmSupprUser.couleur+"22",border:"2px solid "+(confirmSupprUser.couleur||"#888"),display:"flex",alignItems:"center",justifyContent:"center",fontSize:24}}>{confirmSupprUser.avatar}</div>
+          <div style={{textAlign:"left"}}>
+            <div style={{fontSize:13,fontWeight:700}}>{confirmSupprUser.prenom} {confirmSupprUser.nom||""}</div>
+            <div style={{fontSize:12,color:"#94a3b8"}}>🔑 {confirmSupprUser.login} · {confirmSupprUser.role}</div>
+          </div>
+        </div>
+        <div style={{background:"#ef444415",border:"1px solid #ef444430",borderRadius:8,padding:"8px 12px",marginBottom:18,fontSize:12,color:"#f87171"}}>
+          ⚠️ Cette suppression est <strong>définitive et irréversible</strong>.<br/>
+          Tous les objectifs liés à ce profil resteront dans la base.
+        </div>
+        <div style={{display:"flex",gap:10,justifyContent:"center"}}>
+          <Btn ghost color="#94a3b8" brdC="#e2e8f0" onClick={function(){setConfirmSupprUser(null);}}>Annuler</Btn>
+          <Btn bg="#ef4444" onClick={confirmerSupprUser}>🗑 Supprimer définitivement</Btn>
+        </div>
+      </div>
+    </Modal>}
 
     {/* Modal confirmation suppression structure */}
     {confirmSuppr && <Modal onClose={function(){setConfirmSuppr(null);}} w={400}>

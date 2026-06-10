@@ -402,6 +402,27 @@ def api_gen_reset_code(uid):
     return ok({"ok": True, "code": code})
 
 
+@app.route("/api/users/<int:uid>", methods=["DELETE"])
+def api_delete_user(uid):
+    """Supprime définitivement un utilisateur (superadmin uniquement)."""
+    requester = get_requester()
+    if not requester or requester.get("role") != "superadmin":
+        return err("Seul le super-administrateur peut supprimer des comptes.", 403)
+    if requester.get("id") == uid:
+        return err("Impossible de supprimer votre propre compte.", 400)
+
+    d      = load_data()
+    target = next((u for u in d["users"] if u.get("id") == uid), None)
+    if not target:
+        return err("Utilisateur introuvable.", 404)
+    if target.get("role") == "superadmin":
+        return err("Impossible de supprimer un super-administrateur.", 403)
+
+    d["users"] = [u for u in d["users"] if u.get("id") != uid]
+    save_data(d)
+    return ok()
+
+
 # ── API : mots de passe ────────────────────────────────────────────────────────
 
 @app.route("/api/change-password", methods=["POST"])
