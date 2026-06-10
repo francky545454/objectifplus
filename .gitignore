@@ -22,3 +22,8 @@ PieceJointe.txt
 Thumbs.db
 
 .vercel
+
+# Sauvegarde automatique (données locales — ne pas publier)
+sauvegarde_objectifplus.json
+backup_config.json
+backup.log

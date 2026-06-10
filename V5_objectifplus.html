@@ -3472,8 +3472,6 @@ function App() {
 
   var [currentUser,  setCurrentUser]  = useState(null);
   var [notif,        setNotif]        = useState(null);
-  // Sauvegarde : rappel si admin se connecte après 18h sans avoir sauvegardé aujourd'hui
-  var [showBackupReminder, setShowBackupReminder] = useState(false);
 
   function notify(msg,type){setNotif({msg,type});setTimeout(function(){setNotif(null);},3200);}
 
@@ -3497,17 +3495,10 @@ function App() {
     a.download = "objectifplus_sauvegarde_" + today + ".json";
     a.click();
     URL.revokeObjectURL(url);
-    setShowBackupReminder(false);
     notify("💾 Sauvegarde téléchargée ! (" + now + ")", "success");
   }
 
-  function handleLogin(u) {
-    setCurrentUser(u);
-    if (u.role === "admin" || u.role === "superadmin") {
-      var heure = new Date().getHours();
-      if (heure >= 18) { setTimeout(function(){ setShowBackupReminder(true); }, 1200); }
-    }
-  }
+  function handleLogin(u) { setCurrentUser(u); }
   function handleLogout() { setToken(null); setCurrentUser(null); }
 
   return (
@@ -3565,24 +3556,7 @@ function App() {
         onExporterSauvegarde={exporterSauvegarde}
       />}
 
-      {/* ── Rappel sauvegarde du soir (admin uniquement) ── */}
-      {showBackupReminder && (function(){
-        var pal = isDark ? PALETTE_DARK : PALETTE_LIGHT;
-        return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.78)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:16,backdropFilter:"blur(6px)"}}>
-          <div style={{background:pal.bg2,border:"2px solid #f59e0b",borderRadius:20,padding:32,maxWidth:440,width:"100%",textAlign:"center",boxShadow:"0 20px 60px rgba(0,0,0,.5)"}}>
-            <div style={{fontSize:56,marginBottom:12}}>💾</div>
-            <div style={{fontSize:20,fontWeight:900,color:"#f59e0b",marginBottom:8}}>Rappel sauvegarde du soir</div>
-            <div style={{fontSize:14,color:pal.tx2,marginBottom:24,lineHeight:1.7}}>
-              Il est plus de 18h et aucune sauvegarde n'a été effectuée aujourd'hui.<br/>
-              Il est recommandé de télécharger une copie des données chaque soir avant de quitter l'application.
-            </div>
-            <div style={{display:"flex",gap:12,justifyContent:"center"}}>
-              <span role="button" onClick={function(){setShowBackupReminder(false);}} style={{padding:"10px 22px",borderRadius:10,background:"transparent",border:"1.5px solid "+pal.brd2,color:pal.tx2,fontSize:14,fontWeight:700,cursor:"pointer"}}>Plus tard</span>
-              <span role="button" onClick={exporterSauvegarde} style={{padding:"10px 28px",borderRadius:10,background:"#f59e0b",color:"#000",fontSize:14,fontWeight:900,cursor:"pointer",display:"flex",alignItems:"center",gap:8}}>💾 Sauvegarder maintenant</span>
-            </div>
-          </div>
-        </div>;
-      })()}
+      {/* Sauvegarde automatique active — rappel du soir supprimé */}
 
     </ThemeCtx.Provider>
   );
