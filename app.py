@@ -183,6 +183,27 @@ def icons(filename):
     return send_from_directory(os.path.join(BASE_DIR, "icons"), filename, mimetype=mime)
 
 
+# ── API : ping (cron quotidien Vercel — maintient Supabase éveillé) ───────────
+
+@app.route("/api/ping", methods=["GET"])
+def api_ping():
+    """Endpoint appelé par le cron Vercel chaque matin à 6h UTC.
+    Effectue une lecture légère sur Supabase pour éviter la mise en pause
+    automatique des projets inactifs (politique Supabase free tier).
+    """
+    status = "ok"
+    detail = "no supabase"
+    if sb:
+        try:
+            # Lecture minimale : on récupère juste la première ligne de app_data
+            sb.table("app_data").select("id").limit(1).execute()
+            detail = "supabase active"
+        except Exception as exc:
+            status = "error"
+            detail = str(exc)
+    return ok({"ping": status, "detail": detail, "ts": time.time()})
+
+
 # ── API : données ──────────────────────────────────────────────────────────────
 
 @app.route("/api/data", methods=["GET"])
