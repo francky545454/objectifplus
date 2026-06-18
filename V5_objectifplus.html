@@ -15,8 +15,9 @@
     <!-- React & ReactDOM (production — ~10x plus léger que development) -->
     <script crossorigin src="https://cdn.jsdelivr.net/npm/react@17/umd/react.production.min.js"></script>
     <script crossorigin src="https://cdn.jsdelivr.net/npm/react-dom@17/umd/react-dom.production.min.js"></script>
-    <!-- Babel standalone pour la transpilation JSX in-browser -->
-    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7/babel.min.js"></script>
+    <!-- Babel standalone v7.23.9 — version stable pour transpilation JSX in-browser
+         (les versions 7.24+ génèrent du code ES module incompatible avec script type=text/babel) -->
+    <script src="https://cdn.jsdelivr.net/npm/@babel/standalone@7.23.9/babel.min.js"></script>
 </head>
 <body>
     <div id="root"></div>
