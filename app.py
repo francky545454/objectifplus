@@ -241,9 +241,20 @@ def api_data_post():
                 merged.append(eu)
         d["users"] = merged
 
-    for k in ("objectifs", "recompenses", "echanges", "structures"):
+    for k in ("objectifs", "recompenses", "echanges"):
         if k in b:
             d[k] = b[k]
+
+    if "structures" in b:
+        new_structs = list(b["structures"])
+        # Protection : ne jamais écraser une structure encore référencée par un utilisateur.
+        # Évite l'effacement accidentel lors d'un rechargement sur Supabase dégradé.
+        referenced_ids = {u.get("structureId") for u in d["users"] if u.get("structureId") is not None}
+        new_ids = {s.get("id") for s in new_structs}
+        for s in d.get("structures", []):
+            if s.get("id") in (referenced_ids - new_ids):
+                new_structs.append(s)
+        d["structures"] = new_structs
 
     save_data(d)
     return ok()
@@ -440,6 +451,31 @@ def api_delete_user(uid):
         return err("Impossible de supprimer un super-administrateur.", 403)
 
     d["users"] = [u for u in d["users"] if u.get("id") != uid]
+    save_data(d)
+    return ok()
+
+
+@app.route("/api/structures/<int:sid>", methods=["DELETE"])
+def api_delete_structure(sid):
+    """Supprime une structure (admin/superadmin). Bloqué si des utilisateurs y sont rattachés."""
+    requester = get_requester()
+    if not requester or requester.get("role") not in ("superadmin", "admin"):
+        return err("Accès refusé.", 403)
+
+    d = load_data()
+    attached = [u for u in d["users"] if u.get("structureId") == sid]
+    if attached:
+        return err(
+            f"Impossible : {len(attached)} utilisateur(s) sont encore rattachés à cette structure. "
+            "Réaffectez-les avant de supprimer.",
+            400
+        )
+
+    orig_len = len(d.get("structures", []))
+    d["structures"] = [s for s in d.get("structures", []) if s.get("id") != sid]
+    if len(d["structures"]) == orig_len:
+        return err("Structure introuvable.", 404)
+
     save_data(d)
     return ok()
 

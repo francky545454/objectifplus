@@ -1712,11 +1712,18 @@ function EquipesPanel(p) {
     setFStruct({nom:"",ville:"",dept:"",emoji:"🏛️",couleur:T.purple});
   }
   function suppStruct(s) {
-    var hasPeople=p.users.find(function(x){return x.structureId===s.id;});
-    if(hasPeople){p.nf("Impossible : des utilisateurs sont encore rattachés","error");return;}
-    p.setStructures(function(prev){return prev.filter(function(x){return x.id!==s.id;});});
-    p.nf("Structure supprimée","warn");
-    setConfirmSuppr(null);
+    fetch("/api/structures/"+s.id, {method:"DELETE",headers:{"Authorization":"Bearer "+getToken()}})
+      .then(function(r){return r.json();})
+      .then(function(d){
+        if(d.ok||d.success){
+          p.setStructures(function(prev){return prev.filter(function(x){return x.id!==s.id;});});
+          p.nf("Structure supprimée","warn");
+        } else {
+          p.nf(d.error||"Impossible de supprimer la structure","error");
+        }
+        setConfirmSuppr(null);
+      })
+      .catch(function(){p.nf("Erreur réseau","error"); setConfirmSuppr(null);});
   }
   function saveDroits(userId, droits) {
     p.setUsers(function(prev){return prev.map(function(u){return u.id===userId?Object.assign({},u,{droits:droits}):u;});});
@@ -1764,7 +1771,22 @@ function EquipesPanel(p) {
     }).catch(function(){p.nf("Impossible de contacter le serveur.","error");});
   }
 
+  var orphans=p.users.filter(function(u){
+    return (u.role==="educateur"||u.role==="jeune")&&u.structureId!=null&&!p.structures.find(function(s){return s.id===u.structureId;});
+  });
+
   return <div>
+    {/* Alerte si des utilisateurs n'ont plus de structure valide */}
+    {orphans.length>0 && <div style={{background:"#fef3c7",border:"1.5px solid #f59e0b",borderRadius:10,padding:"12px 16px",marginBottom:16,display:"flex",alignItems:"flex-start",gap:10}}>
+      <span style={{fontSize:20,flexShrink:0}}>⚠️</span>
+      <div>
+        <div style={{fontWeight:700,color:"#92400e",marginBottom:4}}>{orphans.length} profil(s) sans structure valide</div>
+        <div style={{fontSize:12,color:"#78350f",lineHeight:1.5}}>
+          {orphans.map(function(u){return ((u.prenom||"")+" "+(u.nom||u.login||"")).trim();}).join(", ")} —
+          Créez leur structure. Ils s'y rattacheront automatiquement au prochain rechargement s'il n'y a qu'une seule structure.
+        </div>
+      </div>
+    </div>}
     {/* Sous-onglets + bouton action */}
     <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
