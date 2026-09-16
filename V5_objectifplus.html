@@ -1701,6 +1701,7 @@ function EquipesPanel(p) {
   var [localResetCodes, setLocalResetCodes] = useState({}); // {userId: {code, createdAt}}
   var [editLogin, setEditLogin] = useState(null); // {user, newLogin}
   var [confirmSupprUser, setConfirmSupprUser] = useState(null); // user à supprimer
+  var [searchEdu,        setSearchEdu]        = useState("");   // filtre éducateurs
   var [fStruct, setFStruct] = useState({nom:"",ville:"",dept:"",emoji:"🏛️",couleur:T.purple});
 
   function saveStruct() {
@@ -1844,34 +1845,77 @@ function EquipesPanel(p) {
 
     {/* ─ Éducateurs & droits ─ */}
     {sousTab==="educateurs" && <div style={{display:"flex",flexDirection:"column",gap:10}}>
-      {p.users.filter(function(x){return x.role==="educateur";}).map(function(edu){
-        var st=p.structures.find(function(s){return s.id===edu.structureId;});
-        var droits=edu.droits||DROITS_DEF;
-        var nbDroits=Object.keys(droits).filter(function(k){return droits[k];}).length;
-        return <Card key={edu.id}>
-          <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
-            <Ava size={44} ico={edu.avatar} c={edu.couleur||T.blue}/>
-            <div style={{flex:1,minWidth:120}}>
-              <div style={{fontSize:15,fontWeight:800}}>{edu.prenom} {edu.nom}</div>
-              <div style={{fontSize:12,color:T.tx2}}>🔑 {edu.login} · {nbDroits}/{DROITS_LABELS.length} droits</div>
+      {/* Barre de recherche */}
+      <div style={{position:"relative",marginBottom:4}}>
+        <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:15,pointerEvents:"none",opacity:.5}}>🔍</span>
+        <input type="text" placeholder="Rechercher un éducateur (nom, prénom, login)…" value={searchEdu}
+          onChange={function(e){setSearchEdu(e.target.value);}}
+          style={{width:"100%",boxSizing:"border-box",padding:"9px 36px 9px 36px",borderRadius:10,border:"1.5px solid "+T.brd,background:T.bg2,color:T.tx,fontSize:13,outline:"none"}}/>
+        {searchEdu && <span role="button" onClick={function(){setSearchEdu("");}}
+          style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:T.tx3,fontSize:13,fontWeight:700}}>✕</span>}
+      </div>
+
+      {/* Groupement par structure */}
+      {(function(){
+        var q = searchEdu.trim().toLowerCase();
+        var filtres = p.users.filter(function(x){
+          if(x.role!=="educateur") return false;
+          if(!q) return true;
+          return ((x.prenom||"")+" "+(x.nom||"")+" "+(x.login||"")).toLowerCase().includes(q);
+        });
+        var groups = [];
+        p.structures.forEach(function(st){
+          var edus = filtres.filter(function(e){return e.structureId===st.id;});
+          if(q && edus.length===0) return;
+          groups.push({st:st, edus:edus});
+        });
+        var orphans = filtres.filter(function(e){return !p.structures.find(function(s){return s.id===e.structureId;});});
+        if(orphans.length>0) groups.push({st:null, edus:orphans});
+
+        if(groups.length===0) return <div style={{textAlign:"center",padding:"32px 0",color:T.tx3,fontSize:13}}>
+          Aucun éducateur trouvé pour « {searchEdu} »
+        </div>;
+
+        return groups.map(function(g){
+          return <div key={g.st?g.st.id:"orphans"} style={{marginBottom:4}}>
+            {/* En-tête de groupe structure */}
+            <div style={{display:"flex",alignItems:"center",gap:8,padding:"8px 4px",marginBottom:6,borderBottom:"2px solid "+(g.st?g.st.couleur:T.brd)}}>
+              <span style={{fontSize:17}}>{g.st?g.st.emoji:"⚠️"}</span>
+              <span style={{fontWeight:800,fontSize:13,color:g.st?g.st.couleur:"#f59e0b",textTransform:"uppercase",letterSpacing:.5}}>{g.st?g.st.nom:"Sans structure"}</span>
+              <span style={{fontSize:12,color:T.tx3,marginLeft:2}}>— {g.edus.length} éducateur{g.edus.length>1?"s":""}</span>
             </div>
-            {st && <Pill c={st.couleur}>{st.emoji} {st.nom}</Pill>}
-            <Sel value={edu.structureId||""} onChange={function(e){reassignerUser(edu.id,e.target.value);}} style={{width:170,fontSize:12,padding:"5px 8px"}}>
-              {p.structures.map(function(s){return <option key={s.id} value={s.id}>{s.emoji} {s.nom}</option>;})}
-            </Sel>
-            <Btn sm bg={T.purple} onClick={function(){setEditDroits({user:edu,droits:Object.assign({},DROITS_DEF,edu.droits||{})});}}>⚙️ Droits</Btn>
-            <Btn sm bg={T.teal} onClick={function(){setResetMdp({user:edu,newMdp:"",showMdp:false});}}>🔑 MDP</Btn>
-            <Btn sm bg="#6366f1" onClick={function(){setEditLogin({user:edu,newLogin:edu.login});}}>✏️ Login</Btn>
-            {isSuperAdmin && <Btn sm bg={T.red} onClick={function(){supprimerUser(edu);}}>🗑</Btn>}
-          </div>
-          <div style={{marginTop:10,display:"flex",flexWrap:"wrap",gap:5}}>
-            {DROITS_LABELS.map(function(d){
-              var on=droits[d.k];
-              return <span key={d.k} style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:on?T.green+"22":T.bg3,color:on?T.greenL:T.tx3,border:"1px solid "+(on?T.green+"44":T.brd)}}>{d.ico} {d.l}</span>;
+            {g.edus.length===0 && <div style={{fontSize:12,color:T.tx3,fontStyle:"italic",paddingLeft:4,marginBottom:8}}>Aucun éducateur dans cette structure</div>}
+            <div style={{display:"flex",flexDirection:"column",gap:8}}>
+            {g.edus.map(function(edu){
+              var droits=edu.droits||DROITS_DEF;
+              var nbDroits=Object.keys(droits).filter(function(k){return droits[k];}).length;
+              return <Card key={edu.id}>
+                <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                  <Ava size={44} ico={edu.avatar} c={edu.couleur||T.blue}/>
+                  <div style={{flex:1,minWidth:120}}>
+                    <div style={{fontSize:15,fontWeight:800}}>{edu.prenom} {edu.nom}</div>
+                    <div style={{fontSize:12,color:T.tx2}}>🔑 {edu.login} · {nbDroits}/{DROITS_LABELS.length} droits</div>
+                  </div>
+                  <Sel value={edu.structureId||""} onChange={function(e){reassignerUser(edu.id,e.target.value);}} style={{width:170,fontSize:12,padding:"5px 8px"}}>
+                    {p.structures.map(function(s){return <option key={s.id} value={s.id}>{s.emoji} {s.nom}</option>;})}
+                  </Sel>
+                  <Btn sm bg={T.purple} onClick={function(){setEditDroits({user:edu,droits:Object.assign({},DROITS_DEF,edu.droits||{})});}}>⚙️ Droits</Btn>
+                  <Btn sm bg={T.teal} onClick={function(){setResetMdp({user:edu,newMdp:"",showMdp:false});}}>🔑 MDP</Btn>
+                  <Btn sm bg="#6366f1" onClick={function(){setEditLogin({user:edu,newLogin:edu.login});}}>✏️ Login</Btn>
+                  {isSuperAdmin && <Btn sm bg={T.red} onClick={function(){supprimerUser(edu);}}>🗑</Btn>}
+                </div>
+                <div style={{marginTop:10,display:"flex",flexWrap:"wrap",gap:5}}>
+                  {DROITS_LABELS.map(function(d){
+                    var on=droits[d.k];
+                    return <span key={d.k} style={{fontSize:11,padding:"2px 8px",borderRadius:20,background:on?T.green+"22":T.bg3,color:on?T.greenL:T.tx3,border:"1px solid "+(on?T.green+"44":T.brd)}}>{d.ico} {d.l}</span>;
+                  })}
+                </div>
+              </Card>;
             })}
-          </div>
-        </Card>;
-      })}
+            </div>
+          </div>;
+        });
+      })()}
     </div>}
 
     {/* ─ Comptes jeunes ─ */}
