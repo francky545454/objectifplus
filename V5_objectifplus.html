@@ -1702,6 +1702,7 @@ function EquipesPanel(p) {
   var [editLogin, setEditLogin] = useState(null); // {user, newLogin}
   var [confirmSupprUser, setConfirmSupprUser] = useState(null); // user à supprimer
   var [searchEdu,        setSearchEdu]        = useState("");   // filtre éducateurs
+  var [searchStruct,     setSearchStruct]     = useState("");   // filtre structures
   var [fStruct, setFStruct] = useState({nom:"",ville:"",dept:"",emoji:"🏛️",couleur:T.purple});
 
   function saveStruct() {
@@ -1807,9 +1808,29 @@ function EquipesPanel(p) {
 
     {/* ─ Structures ─ */}
     {sousTab==="structures" && <div style={{display:"flex",flexDirection:"column",gap:14}}>
-      {p.structures.map(function(s){
-        var sEducs=p.users.filter(function(x){return x.role==="educateur"&&x.structureId===s.id;});
-        var sJeunes=p.users.filter(function(x){return x.role==="jeune"&&x.structureId===s.id;});
+      {/* Barre de recherche structures */}
+      <div style={{position:"relative"}}>
+        <span style={{position:"absolute",left:12,top:"50%",transform:"translateY(-50%)",fontSize:15,pointerEvents:"none",opacity:.5}}>🔍</span>
+        <input type="text" placeholder="Rechercher un professionnel ou une structure…" value={searchStruct}
+          onChange={function(e){setSearchStruct(e.target.value);}}
+          style={{width:"100%",boxSizing:"border-box",padding:"9px 36px 9px 36px",borderRadius:10,border:"1.5px solid "+T.brd,background:T.bg2,color:T.tx,fontSize:13,outline:"none"}}/>
+        {searchStruct && <span role="button" onClick={function(){setSearchStruct("");}}
+          style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:T.tx3,fontSize:13,fontWeight:700}}>✕</span>}
+      </div>
+      {(function(){
+        var q=searchStruct.trim().toLowerCase();
+        var structs=p.structures.filter(function(s){
+          if(!q) return true;
+          if(s.nom.toLowerCase().includes(q)||s.ville.toLowerCase().includes(q)) return true;
+          return p.users.some(function(u){
+            return u.structureId===s.id&&((u.prenom||"")+" "+(u.nom||"")).toLowerCase().includes(q);
+          });
+        });
+        if(structs.length===0) return <div style={{textAlign:"center",padding:"32px 0",color:T.tx3,fontSize:13}}>Aucun résultat pour « {searchStruct} »</div>;
+        return structs.map(function(s){
+        var q2=q;
+        var sEducs=p.users.filter(function(x){return x.role==="educateur"&&x.structureId===s.id&&(!q2||((x.prenom||"")+" "+(x.nom||"")).toLowerCase().includes(q2)||(s.nom.toLowerCase().includes(q2)||s.ville.toLowerCase().includes(q2)));});
+        var sJeunes=p.users.filter(function(x){return x.role==="jeune"&&x.structureId===s.id&&(!q2||((x.prenom||"")).toLowerCase().includes(q2)||(s.nom.toLowerCase().includes(q2)||s.ville.toLowerCase().includes(q2)));});
         return <Card key={s.id} style={{borderLeft:"4px solid "+s.couleur}}>
           <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
             <div style={{width:50,height:50,borderRadius:13,background:s.couleur+"30",border:"2px solid "+s.couleur,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{s.emoji}</div>
@@ -1840,7 +1861,8 @@ function EquipesPanel(p) {
             </div>
           </div>
         </Card>;
-      })}
+        });
+      })()}
     </div>}
 
     {/* ─ Éducateurs & droits ─ */}
