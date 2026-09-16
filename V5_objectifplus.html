@@ -1703,6 +1703,7 @@ function EquipesPanel(p) {
   var [confirmSupprUser, setConfirmSupprUser] = useState(null); // user à supprimer
   var [searchEdu,        setSearchEdu]        = useState("");   // filtre éducateurs
   var [searchStruct,     setSearchStruct]     = useState("");   // filtre structures
+  var [expandedStructs,  setExpandedStructs]  = useState({});  // {id: bool} — cartes dépliées
   var [fStruct, setFStruct] = useState({nom:"",ville:"",dept:"",emoji:"🏛️",couleur:T.purple});
 
   function saveStruct() {
@@ -1801,7 +1802,15 @@ function EquipesPanel(p) {
           return <span key={t.k} role="button" onClick={function(){setSousTab(t.k);}} style={{display:"inline-flex",alignItems:"center",gap:5,padding:"7px 14px",borderRadius:50,background:act?T.purple:"transparent",color:act?"#fff":T.tx2,fontSize:12,fontWeight:700,cursor:"pointer",border:"1.5px solid "+(act?T.purple:T.brd),transition:"all .2s"}}>{t.ico} {t.l}</span>;
         })}
       </div>
-      {sousTab==="structures" && <Btn onClick={function(){setShowModalSt(true);}}>+ Nouvelle structure</Btn>}
+      {sousTab==="structures" && <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+        <Btn ghost color={T.tx2} brdC={T.brd} sm onClick={function(){
+          var exp={};
+          p.structures.forEach(function(s){exp[s.id]=true;});
+          setExpandedStructs(exp);
+        }}>▼ Tout déployer</Btn>
+        <Btn ghost color={T.tx2} brdC={T.brd} sm onClick={function(){setExpandedStructs({});}}>▲ Tout replier</Btn>
+        <Btn onClick={function(){setShowModalSt(true);}}>+ Nouvelle structure</Btn>
+      </div>}
       {sousTab==="educateurs" && <Btn onClick={function(){p.onAddEducateur();}}>+ Ajouter éducateur</Btn>}
       {sousTab==="comptes"    && <Btn onClick={function(){p.onAddJeune();}}>+ Nouveau jeune</Btn>}
     </div>
@@ -1831,35 +1840,45 @@ function EquipesPanel(p) {
         var q2=q;
         var sEducs=p.users.filter(function(x){return x.role==="educateur"&&x.structureId===s.id&&(!q2||((x.prenom||"")+" "+(x.nom||"")).toLowerCase().includes(q2)||(s.nom.toLowerCase().includes(q2)||s.ville.toLowerCase().includes(q2)));});
         var sJeunes=p.users.filter(function(x){return x.role==="jeune"&&x.structureId===s.id&&(!q2||((x.prenom||"")).toLowerCase().includes(q2)||(s.nom.toLowerCase().includes(q2)||s.ville.toLowerCase().includes(q2)));});
-        return <Card key={s.id} style={{borderLeft:"4px solid "+s.couleur}}>
-          <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:12}}>
-            <div style={{width:50,height:50,borderRadius:13,background:s.couleur+"30",border:"2px solid "+s.couleur,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{s.emoji}</div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:16,fontWeight:800}}>{s.nom}</div>
+        var isOpen=!!expandedStructs[s.id];
+        var toggleOpen=function(){setExpandedStructs(function(prev){var n=Object.assign({},prev);n[s.id]=!n[s.id];return n;});};
+        var allEdus=p.users.filter(function(x){return x.role==="educateur"&&x.structureId===s.id;});
+        var allJeunes=p.users.filter(function(x){return x.role==="jeune"&&x.structureId===s.id;});
+        return <Card key={s.id} style={{borderLeft:"4px solid "+s.couleur,padding:0,overflow:"hidden"}}>
+          {/* En-tête cliquable */}
+          <div role="button" onClick={toggleOpen}
+            style={{display:"flex",alignItems:"center",gap:12,padding:"14px 16px",cursor:"pointer",userSelect:"none"}}>
+            <div style={{width:46,height:46,borderRadius:12,background:s.couleur+"30",border:"2px solid "+s.couleur,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{s.emoji}</div>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:15,fontWeight:800}}>{s.nom}</div>
               <div style={{fontSize:12,color:T.tx2}}>{s.ville}{s.dept?" · Dépt. "+s.dept:""}</div>
             </div>
-            <Pill c={T.blue}>{sEducs.length} éducateurs</Pill>
-            <Pill c={T.purple}>{sJeunes.length} jeunes</Pill>
-            <Btn sm bg={T.red} onClick={function(){setConfirmSuppr(s);}}>🗑 Supprimer</Btn>
+            <Pill c={T.blue}>{allEdus.length} éduc.</Pill>
+            <Pill c={T.purple}>{allJeunes.length} jeunes</Pill>
+            <span style={{fontSize:14,color:T.tx3,marginLeft:4,transition:"transform .2s",display:"inline-block",transform:isOpen?"rotate(180deg)":"rotate(0deg)"}}>▼</span>
+            <Btn sm bg={T.red} onClick={function(e){e.stopPropagation();setConfirmSuppr(s);}}>🗑</Btn>
           </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
-            <div style={{background:T.bg3,borderRadius:10,padding:10}}>
-              <div style={{fontSize:11,color:T.tx3,textTransform:"uppercase",letterSpacing:1,marginBottom:7}}>Éducateurs</div>
-              {sEducs.length===0 && <div style={{fontSize:12,color:T.tx3,fontStyle:"italic"}}>Aucun</div>}
-              {sEducs.map(function(e){return <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:"1px solid "+T.brd}}>
-                <span>{e.avatar}</span><span style={{fontSize:13,fontWeight:600}}>{e.prenom} {e.nom}</span>
-              </div>;})}
+          {/* Détails dépliables */}
+          {isOpen && <div style={{padding:"0 16px 14px",borderTop:"1px solid "+T.brd}}>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginTop:12}}>
+              <div style={{background:T.bg3,borderRadius:10,padding:10}}>
+                <div style={{fontSize:11,color:T.tx3,textTransform:"uppercase",letterSpacing:1,marginBottom:7}}>Éducateurs</div>
+                {sEducs.length===0 && <div style={{fontSize:12,color:T.tx3,fontStyle:"italic"}}>Aucun</div>}
+                {sEducs.map(function(e){return <div key={e.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:"1px solid "+T.brd}}>
+                  <span>{e.avatar}</span><span style={{fontSize:13,fontWeight:600}}>{e.prenom} {e.nom}</span>
+                </div>;})}
+              </div>
+              <div style={{background:T.bg3,borderRadius:10,padding:10}}>
+                <div style={{fontSize:11,color:T.tx3,textTransform:"uppercase",letterSpacing:1,marginBottom:7}}>Jeunes</div>
+                {sJeunes.length===0 && <div style={{fontSize:12,color:T.tx3,fontStyle:"italic"}}>Aucun</div>}
+                {sJeunes.map(function(j){return <div key={j.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:"1px solid "+T.brd}}>
+                  <span>{j.avatar}</span>
+                  <span style={{fontSize:13,fontWeight:600}}>{j.prenom}</span>
+                  <span style={{fontSize:11,color:T.tx3,marginLeft:"auto"}}>{getPoints(j.id,p.objectifs)} pts</span>
+                </div>;})}
+              </div>
             </div>
-            <div style={{background:T.bg3,borderRadius:10,padding:10}}>
-              <div style={{fontSize:11,color:T.tx3,textTransform:"uppercase",letterSpacing:1,marginBottom:7}}>Jeunes</div>
-              {sJeunes.length===0 && <div style={{fontSize:12,color:T.tx3,fontStyle:"italic"}}>Aucun</div>}
-              {sJeunes.map(function(j){return <div key={j.id} style={{display:"flex",alignItems:"center",gap:8,padding:"4px 0",borderBottom:"1px solid "+T.brd}}>
-                <span>{j.avatar}</span>
-                <span style={{fontSize:13,fontWeight:600}}>{j.prenom}</span>
-                <span style={{fontSize:11,color:T.tx3,marginLeft:"auto"}}>{getPoints(j.id,p.objectifs)} pts</span>
-              </div>;})}
-            </div>
-          </div>
+          </div>}
         </Card>;
         });
       })()}
