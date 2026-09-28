@@ -402,17 +402,20 @@ def api_create_user():
     if any(u["login"].lower() == login for u in d["users"]):
         return err("Cet identifiant existe déjà.")
 
+    role = b.get("role", "jeune")
     nu = {
-        "id":          int(time.time() * 1000),
-        "login":       login,
-        "mdp":         hash_password(mdp),
-        "role":        b.get("role",        "jeune"),
-        "prenom":      b.get("prenom",      ""),
-        "nom":         b.get("nom",         ""),
-        "age":         b.get("age")         or None,
-        "avatar":      b.get("avatar",      "👤"),
-        "couleur":     b.get("couleur",     "#7c3aed"),
-        "structureId": b.get("structureId") or None,
+        "id":                 int(time.time() * 1000),
+        "login":              login,
+        "mdp":                hash_password(mdp),
+        "role":               role,
+        "prenom":             b.get("prenom",      ""),
+        "nom":                b.get("nom",         ""),
+        "age":                b.get("age")         or None,
+        "avatar":             b.get("avatar",      "👤"),
+        "couleur":            b.get("couleur",     "#7c3aed"),
+        "structureId":        b.get("structureId") or None,
+        "structureIds":       b.get("structureIds") or [],
+        "mustChangePassword": bool(b.get("mustChangePassword", False)),
     }
     d["users"].append(nu)
     log_action(d, "création_utilisateur", requester,
@@ -420,6 +423,61 @@ def api_create_user():
     save_data(d)
     safe = {k: v for k, v in nu.items() if k != "mdp"}
     return ok({"ok": True, "user": safe})
+
+
+@app.route("/api/users/bulk", methods=["POST"])
+def api_create_users_bulk():
+    """Création en masse d'éducateurs (admin/superadmin)."""
+    requester = get_requester()
+    if not requester or requester.get("role") not in ("superadmin", "admin"):
+        return err("Non autorisé.", 403)
+
+    b = request.get_json(force=True) or {}
+    users_data   = b.get("users", [])
+    default_mdp  = b.get("mdp", "")
+    if not users_data or not default_mdp:
+        return err("Liste d'utilisateurs et mot de passe obligatoires.")
+
+    d = load_data()
+    existing_logins = {u["login"].lower() for u in d["users"]}
+
+    created, skipped = [], []
+    base_ts = int(time.time() * 1000)
+    for i, ub in enumerate(users_data):
+        prenom = ub.get("prenom", "").strip()
+        nom    = ub.get("nom",    "").strip()
+        if not prenom or not nom:
+            skipped.append({"reason": "Prénom ou nom manquant", "data": ub})
+            continue
+        initial = prenom[0].lower()
+        login   = f"{initial}.{nom.lower().replace(' ', '-')}"
+        if login in existing_logins:
+            skipped.append({"reason": f"Login '{login}' déjà existant", "login": login})
+            continue
+        nu = {
+            "id":                 base_ts + i,
+            "login":              login,
+            "mdp":                hash_password(default_mdp),
+            "role":               "educateur",
+            "prenom":             prenom,
+            "nom":                nom,
+            "age":                None,
+            "avatar":             ub.get("avatar", "👨‍🏫"),
+            "couleur":            ub.get("couleur", "#7c3aed"),
+            "structureId":        ub.get("structureId") or None,
+            "structureIds":       [],
+            "mustChangePassword": True,
+        }
+        d["users"].append(nu)
+        existing_logins.add(login)
+        created.append({k: v for k, v in nu.items() if k != "mdp"})
+
+    if created:
+        log_action(d, "import_masse_educateurs", requester,
+                   f"{len(created)} éducateur(s) créé(s)")
+        save_data(d)
+
+    return ok({"ok": True, "created": created, "skipped": skipped})
 
 
 @app.route("/api/users/<int:uid>/set-password", methods=["POST"])
@@ -441,6 +499,7 @@ def api_set_password(uid):
         return err("Les éducateurs ne peuvent réinitialiser que le mot de passe des jeunes.", 403)
 
     user["mdp"] = hash_password(new_mdp)
+    user["mustChangePassword"] = False
     log_action(d, "réinitialisation_mdp", requester,
                f"Cible : {user.get('prenom','')} {user.get('nom','')} ({user.get('login','')})")
     save_data(d)

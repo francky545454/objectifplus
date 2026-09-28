@@ -1705,6 +1705,13 @@ function EquipesPanel(p) {
   var [searchStruct,     setSearchStruct]     = useState("");   // filtre structures
   var [expandedStructs,  setExpandedStructs]  = useState({});  // {id: bool} — cartes dépliées
   var [fStruct, setFStruct] = useState({nom:"",ville:"",dept:"",emoji:"🏛️",couleur:T.purple});
+  var [showImportMasse,  setShowImportMasse]  = useState(false);
+  var [showModalDir,     setShowModalDir]     = useState(false);
+  var [importRows,       setImportRows]       = useState([{prenom:"",nom:"",structureId:""}]);
+  var [importMdp,        setImportMdp]        = useState("");
+  var [importMdpShow,    setImportMdpShow]    = useState(false);
+  var [importResult,     setImportResult]     = useState(null); // {created,skipped}
+  var [fDir, setFDir] = useState({prenom:"",nom:"",login:"",mdp:"",avatar:"👔",structureIds:[]});
 
   function saveStruct() {
     if(!fStruct.nom||!fStruct.ville){p.nf("Nom et ville obligatoires","error");return;}
@@ -1795,6 +1802,7 @@ function EquipesPanel(p) {
       <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
         {[
           {k:"structures",ico:"🏛️",l:"Structures"},
+          {k:"directeurs", ico:"🎓",l:"Directeurs"},
           {k:"educateurs", ico:"👨‍🏫",l:"Éducateurs & droits"},
           {k:"comptes",    ico:"🔐",l:"Comptes jeunes"},
         ].map(function(t){
@@ -1811,7 +1819,11 @@ function EquipesPanel(p) {
         <Btn ghost color={T.tx2} brdC={T.brd} sm onClick={function(){setExpandedStructs({});}}>▲ Tout replier</Btn>
         <Btn onClick={function(){setShowModalSt(true);}}>+ Nouvelle structure</Btn>
       </div>}
-      {sousTab==="educateurs" && <Btn onClick={function(){p.onAddEducateur();}}>+ Ajouter éducateur</Btn>}
+      {sousTab==="directeurs" && <Btn onClick={function(){setShowModalDir(true);}}>+ Nouveau directeur</Btn>}
+      {sousTab==="educateurs" && <div style={{display:"flex",gap:6}}>
+        <Btn ghost color={T.purple} brdC={T.purple} onClick={function(){setImportRows([{prenom:"",nom:"",structureId:""}]);setImportMdp("");setImportResult(null);setShowImportMasse(true);}}>⬆️ Import en masse</Btn>
+        <Btn onClick={function(){p.onAddEducateur();}}>+ Ajouter éducateur</Btn>
+      </div>}
       {sousTab==="comptes"    && <Btn onClick={function(){p.onAddJeune();}}>+ Nouveau jeune</Btn>}
     </div>
 
@@ -2159,6 +2171,202 @@ function EquipesPanel(p) {
         <Btn bg={T.teal} style={{flex:1,justifyContent:"center"}} disabled={!resetMdp.newMdp||resetMdp.newMdp.length<6} onClick={confirmerResetMdp}>🔑 Réinitialiser le mot de passe</Btn>
       </div>
     </Modal>}
+
+    {/* ─ Directeurs ─ */}
+    {sousTab==="directeurs" && <div style={{display:"flex",flexDirection:"column",gap:10}}>
+      {p.users.filter(function(x){return x.role==="directeur";}).length===0
+        ? <div style={{textAlign:"center",padding:"40px 0",color:T.tx3,fontSize:14}}>
+            Aucun directeur créé.<br/>Cliquez sur «&nbsp;+ Nouveau directeur&nbsp;» pour commencer.
+          </div>
+        : p.users.filter(function(x){return x.role==="directeur";}).map(function(dir){
+          var sids = (dir.structureIds||[]).map(Number);
+          var structs = p.structures.filter(function(s){return sids.includes(s.id);});
+          return <Card key={dir.id}>
+            <div style={{display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+              <Ava size={44} ico={dir.avatar||"👔"} c={dir.couleur||T.purple}/>
+              <div style={{flex:1,minWidth:120}}>
+                <div style={{fontSize:15,fontWeight:800}}>{dir.prenom} {dir.nom}</div>
+                <div style={{fontSize:12,color:T.tx2}}>🔑 {dir.login}</div>
+              </div>
+              <Btn sm bg={T.teal} onClick={function(){setResetMdp({user:dir,newMdp:"",showMdp:false});}}>🔑 MDP</Btn>
+              {isSuperAdmin && <Btn sm bg={T.red} onClick={function(){supprimerUser(dir);}}>🗑</Btn>}
+            </div>
+            <div style={{marginTop:10,display:"flex",flexWrap:"wrap",gap:5}}>
+              {structs.length===0
+                ? <span style={{fontSize:12,color:T.tx3,fontStyle:"italic"}}>Aucune structure assignée</span>
+                : structs.map(function(s){return <span key={s.id} style={{fontSize:12,padding:"3px 10px",borderRadius:20,background:s.couleur+"22",color:s.couleur,border:"1px solid "+s.couleur+"44"}}>{s.emoji} {s.nom}</span>;})
+              }
+            </div>
+          </Card>;
+        })
+      }
+    </div>}
+
+    {/* Modal nouveau directeur */}
+    {showModalDir && <Modal onClose={function(){setShowModalDir(false);}} w={500}>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:18}}>🎓 Nouveau directeur</div>
+      <div style={{display:"flex",flexDirection:"column",gap:11}}>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+          <div><div style={{fontSize:13,color:T.tx2,marginBottom:5,fontWeight:600}}>Prénom *</div>
+            <Inp value={fDir.prenom} onChange={function(e){setFDir(function(f){return Object.assign({},f,{prenom:e.target.value});});}} placeholder="Marie"/></div>
+          <div><div style={{fontSize:13,color:T.tx2,marginBottom:5,fontWeight:600}}>Nom *</div>
+            <Inp value={fDir.nom} onChange={function(e){setFDir(function(f){return Object.assign({},f,{nom:e.target.value});});}} placeholder="Dupont"/></div>
+        </div>
+        <div><div style={{fontSize:13,color:T.tx2,marginBottom:5,fontWeight:600}}>Identifiant *</div>
+          <Inp value={fDir.login} onChange={function(e){setFDir(function(f){return Object.assign({},f,{login:e.target.value});});}} placeholder="m.dupont"/>
+          {fDir.prenom && fDir.nom && !fDir.login && <div style={{fontSize:11,color:T.tx3,marginTop:4}}>Suggestion&nbsp;: {(fDir.prenom[0]||"").toLowerCase()}.{fDir.nom.toLowerCase().replace(/ /g,"-")}</div>}
+        </div>
+        <div><div style={{fontSize:13,color:T.tx2,marginBottom:5,fontWeight:600}}>Mot de passe provisoire *</div>
+          <Inp type="password" value={fDir.mdp} onChange={function(e){setFDir(function(f){return Object.assign({},f,{mdp:e.target.value});});}} placeholder="Min. 6 caractères"/></div>
+        <div>
+          <div style={{fontSize:13,color:T.tx2,marginBottom:8,fontWeight:600}}>Structures à gérer (plusieurs possibles)</div>
+          <div style={{display:"flex",flexDirection:"column",gap:6,maxHeight:200,overflowY:"auto"}}>
+            {p.structures.map(function(s){
+              var checked = fDir.structureIds.includes(s.id);
+              return <label key={s.id} style={{display:"flex",alignItems:"center",gap:10,padding:"8px 10px",borderRadius:8,background:checked?T.purple+"15":T.bg3,border:"1px solid "+(checked?T.purple:T.brd),cursor:"pointer",fontSize:13}}>
+                <input type="checkbox" checked={checked} onChange={function(){
+                  setFDir(function(f){
+                    var ids=f.structureIds.slice();
+                    if(checked) ids=ids.filter(function(id){return id!==s.id;});
+                    else ids.push(s.id);
+                    return Object.assign({},f,{structureIds:ids});
+                  });
+                }}/>
+                <span>{s.emoji} <strong>{s.nom}</strong> — {s.ville}</span>
+              </label>;
+            })}
+            {p.structures.length===0 && <div style={{color:T.tx3,fontSize:13,fontStyle:"italic"}}>Aucune structure disponible — créez-en une d'abord.</div>}
+          </div>
+        </div>
+        <div style={{display:"flex",gap:10,marginTop:6}}>
+          <Btn ghost color={T.tx2} brdC={T.brd} onClick={function(){setShowModalDir(false);}}>Annuler</Btn>
+          <Btn bg={T.purple} style={{flex:1,justifyContent:"center"}} onClick={function(){
+            if(!fDir.prenom||!fDir.nom){p.nf("Prénom et nom obligatoires","error");return;}
+            var login=(fDir.login||((fDir.prenom[0]||"").toLowerCase()+"."+fDir.nom.toLowerCase().replace(/ /g,"-"))).trim();
+            if(!login||!fDir.mdp||fDir.mdp.length<6){p.nf("Identifiant et MDP (6 car. min.) obligatoires","error");return;}
+            apiPost("/api/users",{role:"directeur",login:login,mdp:fDir.mdp,prenom:fDir.prenom,nom:fDir.nom,avatar:fDir.avatar,structureIds:fDir.structureIds,mustChangePassword:true}).then(function(d){
+              if(d.ok){
+                p.setUsers(function(prev){return [...prev,d.user];});
+                p.nf("Directeur "+fDir.prenom+" créé !","success");
+                setShowModalDir(false);
+                setFDir({prenom:"",nom:"",login:"",mdp:"",avatar:"👔",structureIds:[]});
+              } else {p.nf(d.error||"Erreur","error");}
+            }).catch(function(){p.nf("Erreur réseau","error");});
+          }}>🎓 Créer le directeur</Btn>
+        </div>
+      </div>
+    </Modal>}
+
+    {/* Modal import en masse éducateurs */}
+    {showImportMasse && <Modal onClose={function(){setShowImportMasse(false);}} w={620}>
+      <div style={{fontSize:18,fontWeight:800,marginBottom:6}}>⬆️ Import éducateurs en masse</div>
+      <div style={{fontSize:13,color:T.tx2,marginBottom:16}}>
+        L'identifiant est généré automatiquement&nbsp;: <strong>initiale.nom</strong> (ex&nbsp;: «&nbsp;Marie Dupont&nbsp;» → <code>m.dupont</code>). Tous les comptes auront le même mot de passe provisoire et devront le changer à leur première connexion.
+      </div>
+
+      {!importResult ? <>
+        {/* Mot de passe provisoire */}
+        <div style={{marginBottom:14}}>
+          <div style={{fontSize:13,color:T.tx2,marginBottom:5,fontWeight:600}}>Mot de passe provisoire commun *</div>
+          <div style={{position:"relative"}}>
+            <Inp type={importMdpShow?"text":"password"} value={importMdp}
+              onChange={function(e){setImportMdp(e.target.value);}}
+              placeholder="Ex: Objectif2025!" style={{paddingRight:42}}/>
+            <span className="pw-toggle" onClick={function(){setImportMdpShow(function(v){return !v;});}}
+              style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",color:T.tx3,fontSize:16,userSelect:"none"}}>
+              {importMdpShow?"🙈":"👁️"}
+            </span>
+          </div>
+          {importMdp.length>0&&importMdp.length<6&&<div style={{fontSize:11,color:T.redL,marginTop:4}}>⚠️ Au moins 6 caractères</div>}
+        </div>
+
+        {/* Tableau de saisie */}
+        <div style={{maxHeight:320,overflowY:"auto",marginBottom:12}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
+            <thead>
+              <tr style={{background:T.bg3}}>
+                <th style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:T.tx2,borderRadius:"8px 0 0 0"}}>#</th>
+                <th style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:T.tx2}}>Prénom *</th>
+                <th style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:T.tx2}}>Nom *</th>
+                <th style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:T.tx2}}>Structure</th>
+                <th style={{padding:"8px 10px",textAlign:"left",fontWeight:700,color:T.tx2}}>Login (auto)</th>
+                <th style={{padding:"8px 10px",borderRadius:"0 8px 0 0"}}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {importRows.map(function(row,i){
+                var autoLogin = (row.prenom&&row.nom)
+                  ? (row.prenom[0]||"").toLowerCase()+"."+row.nom.toLowerCase().replace(/ /g,"-")
+                  : "";
+                return <tr key={i} style={{borderBottom:"1px solid "+T.brd}}>
+                  <td style={{padding:"6px 10px",color:T.tx3,fontWeight:700}}>{i+1}</td>
+                  <td style={{padding:"4px 6px"}}><Inp value={row.prenom} onChange={function(e){var v=e.target.value;setImportRows(function(rows){return rows.map(function(r,j){return j===i?Object.assign({},r,{prenom:v}):r;});});}} placeholder="Marie" style={{padding:"5px 8px",fontSize:12}}/></td>
+                  <td style={{padding:"4px 6px"}}><Inp value={row.nom} onChange={function(e){var v=e.target.value;setImportRows(function(rows){return rows.map(function(r,j){return j===i?Object.assign({},r,{nom:v}):r;});});}} placeholder="Dupont" style={{padding:"5px 8px",fontSize:12}}/></td>
+                  <td style={{padding:"4px 6px"}}>
+                    <Sel value={row.structureId||""} onChange={function(e){var v=e.target.value;setImportRows(function(rows){return rows.map(function(r,j){return j===i?Object.assign({},r,{structureId:v?Number(v):null}):r;});});}} style={{fontSize:12,padding:"5px 6px"}}>
+                      <option value="">— Structure —</option>
+                      {p.structures.map(function(s){return <option key={s.id} value={s.id}>{s.emoji} {s.nom}</option>;})}
+                    </Sel>
+                  </td>
+                  <td style={{padding:"4px 10px",color:autoLogin?T.purple:T.tx3,fontWeight:600,fontSize:12,fontStyle:autoLogin?"normal":"italic"}}>
+                    {autoLogin||"—"}
+                  </td>
+                  <td style={{padding:"4px 6px",textAlign:"center"}}>
+                    {importRows.length>1&&<span role="button" onClick={function(){setImportRows(function(rows){return rows.filter(function(_,j){return j!==i;});});}} style={{cursor:"pointer",color:T.tx3,fontSize:18,fontWeight:700}}>×</span>}
+                  </td>
+                </tr>;
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <Btn ghost color={T.tx2} brdC={T.brd} sm onClick={function(){setImportRows(function(rows){return [...rows,{prenom:"",nom:"",structureId:""}];});}}>+ Ajouter une ligne</Btn>
+          <div style={{fontSize:12,color:T.tx3}}>{importRows.filter(function(r){return r.prenom&&r.nom;}).length} éducateur(s) valides sur {importRows.length}</div>
+        </div>
+
+        <div style={{display:"flex",gap:10}}>
+          <Btn ghost color={T.tx2} brdC={T.brd} onClick={function(){setShowImportMasse(false);}}>Annuler</Btn>
+          <Btn bg={T.purple} style={{flex:1,justifyContent:"center"}} onClick={function(){
+            if(!importMdp||importMdp.length<6){p.nf("Mot de passe provisoire requis (6 car. min.)","error");return;}
+            var valides=importRows.filter(function(r){return r.prenom.trim()&&r.nom.trim();});
+            if(valides.length===0){p.nf("Saisissez au moins un prénom et un nom","error");return;}
+            apiPost("/api/users/bulk",{users:valides,mdp:importMdp}).then(function(data){
+              if(data.ok){
+                p.setUsers(function(prev){return [...prev,...(data.created||[])];});
+                setImportResult(data);
+              } else {p.nf(data.error||"Erreur lors de l'import","error");}
+            }).catch(function(){p.nf("Erreur réseau","error");});
+          }}>⬆️ Créer {importRows.filter(function(r){return r.prenom&&r.nom;}).length} éducateur(s)</Btn>
+        </div>
+      </> : <div>
+        <div style={{background:"#dcfce7",border:"1.5px solid #22c55e",borderRadius:12,padding:"16px 18px",marginBottom:16}}>
+          <div style={{fontWeight:800,color:"#15803d",fontSize:15,marginBottom:8}}>✅ Import terminé</div>
+          <div style={{fontSize:14,color:"#166534"}}>
+            <strong>{importResult.created.length}</strong> compte(s) créé(s) avec succès.
+            {importResult.skipped&&importResult.skipped.length>0&&<span> · <strong>{importResult.skipped.length}</strong> ignoré(s).</span>}
+          </div>
+        </div>
+        {importResult.created.length>0&&<div style={{marginBottom:14}}>
+          <div style={{fontWeight:700,fontSize:13,marginBottom:8,color:T.tx2}}>Comptes créés :</div>
+          <div style={{maxHeight:200,overflowY:"auto",display:"flex",flexDirection:"column",gap:4}}>
+            {importResult.created.map(function(u,i){
+              return <div key={i} style={{display:"flex",gap:8,fontSize:12,background:T.bg3,borderRadius:8,padding:"6px 10px"}}>
+                <span style={{fontWeight:700}}>{u.prenom} {u.nom}</span>
+                <span style={{color:T.tx3}}>→</span>
+                <span style={{color:T.purple,fontWeight:600}}>🔑 {u.login}</span>
+                {u.structureId&&<span style={{color:T.tx3}}>· {(p.structures.find(function(s){return s.id===Number(u.structureId);})||{}).nom||""}</span>}
+              </div>;
+            })}
+          </div>
+        </div>}
+        {importResult.skipped&&importResult.skipped.length>0&&<div style={{marginBottom:14}}>
+          <div style={{fontWeight:700,fontSize:13,marginBottom:8,color:T.tx2}}>Ignorés (login déjà existant ou données incomplètes) :</div>
+          {importResult.skipped.map(function(sk,i){return <div key={i} style={{fontSize:12,color:T.tx3,marginBottom:3}}>{sk.login||sk.data?.prenom||"?"} — {sk.reason}</div>;})}
+        </div>}
+        <Btn bg={T.purple} style={{width:"100%",justifyContent:"center"}} onClick={function(){setShowImportMasse(false);setImportResult(null);}}>Fermer</Btn>
+      </div>}
+    </Modal>}
   </div>;
 }
 
@@ -2499,9 +2707,15 @@ function InterfacePro(p) {
   var u = p.user;
   var isAdmin = u.role==="admin"||u.role==="superadmin";
   var isSuperAdmin = u.role==="superadmin";
+  var isDirecteur = u.role==="directeur";
+  var dirIds = isDirecteur ? (u.structureIds||[]).map(Number) : [];
   var sId = isAdmin?null:u.structureId;
-  var jeunes = p.users.filter(function(x){return x.role==="jeune"&&(isAdmin||x.structureId===sId);});
-  var educs  = p.users.filter(function(x){return x.role==="educateur"&&(isAdmin||x.structureId===sId);});
+  var jeunes = p.users.filter(function(x){
+    return x.role==="jeune"&&(isAdmin||(isDirecteur?dirIds.includes(Number(x.structureId)):x.structureId===sId));
+  });
+  var educs  = p.users.filter(function(x){
+    return x.role==="educateur"&&(isAdmin||(isDirecteur?dirIds.includes(Number(x.structureId)):x.structureId===sId));
+  });
   var myRecs = p.recompenses.filter(function(r){return isAdmin||r.structureId===sId||r.structureId===null;});
 
   var [tab,      setTab]      = useState(isAdmin ? "equipes" : "jeunes");
@@ -3718,8 +3932,30 @@ function App() {
     notify("💾 Sauvegarde téléchargée ! (" + now + ")", "success");
   }
 
-  function handleLogin(u) { setCurrentUser(u); }
-  function handleLogout() { setToken(null); setCurrentUser(null); }
+  var [forceMdp, setForceMdp] = useState(null); // {newMdp, newMdp2, show}
+
+  function handleLogin(u) {
+    if(u.mustChangePassword) {
+      setCurrentUser(u);
+      setForceMdp({newMdp:"",newMdp2:"",show:false});
+    } else {
+      setCurrentUser(u);
+    }
+  }
+  function handleLogout() { setToken(null); setCurrentUser(null); setForceMdp(null); }
+
+  function submitForceMdp() {
+    if(!forceMdp||forceMdp.newMdp.length<6){notify("Mot de passe trop court (6 car. min.)","error");return;}
+    if(forceMdp.newMdp!==forceMdp.newMdp2){notify("Les deux mots de passe ne correspondent pas","error");return;}
+    apiPost("/api/users/"+currentUser.id+"/set-password",{newMdp:forceMdp.newMdp}).then(function(d){
+      if(d.ok){
+        notify("✅ Mot de passe mis à jour avec succès !","success");
+        setForceMdp(null);
+        // Mettre à jour le currentUser pour effacer mustChangePassword
+        setCurrentUser(function(u){return Object.assign({},u,{mustChangePassword:false});});
+      } else {notify(d.error||"Erreur","error");}
+    }).catch(function(){notify("Erreur réseau","error");});
+  }
 
   return (
     <ThemeCtx.Provider value={palette}>
@@ -3729,6 +3965,56 @@ function App() {
         onToggleTheme={toggleTheme}
         isDark={isDark}
       />}
+
+      {/* ── Changement de mot de passe forcé (première connexion) ── */}
+      {currentUser && forceMdp && <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.65)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:9999,padding:16}}>
+        <div style={{background:palette.bg,borderRadius:20,padding:32,maxWidth:440,width:"100%",boxShadow:"0 20px 60px rgba(0,0,0,.4)"}}>
+          <div style={{textAlign:"center",marginBottom:24}}>
+            <div style={{fontSize:40,marginBottom:8}}>🔐</div>
+            <div style={{fontSize:20,fontWeight:800,color:palette.tx,marginBottom:6}}>Changement de mot de passe requis</div>
+            <div style={{fontSize:13,color:palette.tx2,lineHeight:1.5}}>
+              Bienvenue {currentUser.prenom ? currentUser.prenom : currentUser.login} !<br/>
+              Votre compte est configuré avec un mot de passe provisoire.<br/>
+              <strong>Vous devez le changer avant de continuer.</strong>
+            </div>
+          </div>
+          <div style={{display:"flex",flexDirection:"column",gap:12}}>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:palette.tx2,marginBottom:5}}>Nouveau mot de passe *</div>
+              <div style={{position:"relative"}}>
+                <input type={forceMdp.show?"text":"password"} value={forceMdp.newMdp}
+                  onChange={function(e){setForceMdp(function(f){return Object.assign({},f,{newMdp:e.target.value});});}}
+                  placeholder="Minimum 6 caractères"
+                  style={{width:"100%",boxSizing:"border-box",padding:"10px 42px 10px 12px",borderRadius:10,
+                    border:"1.5px solid "+palette.brd,background:palette.bg2,color:palette.tx,fontSize:14,outline:"none"}}/>
+                <span onClick={function(){setForceMdp(function(f){return Object.assign({},f,{show:!f.show});});}}
+                  style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",cursor:"pointer",fontSize:16,userSelect:"none"}}>
+                  {forceMdp.show?"🙈":"👁️"}
+                </span>
+              </div>
+            </div>
+            <div>
+              <div style={{fontSize:13,fontWeight:600,color:palette.tx2,marginBottom:5}}>Confirmer le nouveau mot de passe *</div>
+              <input type={forceMdp.show?"text":"password"} value={forceMdp.newMdp2}
+                onChange={function(e){setForceMdp(function(f){return Object.assign({},f,{newMdp2:e.target.value});});}}
+                placeholder="Répéter le mot de passe"
+                style={{width:"100%",boxSizing:"border-box",padding:"10px 12px",borderRadius:10,
+                  border:"1.5px solid "+(forceMdp.newMdp2&&forceMdp.newMdp!==forceMdp.newMdp2?palette.red:palette.brd),
+                  background:palette.bg2,color:palette.tx,fontSize:14,outline:"none"}}/>
+              {forceMdp.newMdp2&&forceMdp.newMdp!==forceMdp.newMdp2&&<div style={{fontSize:11,color:palette.redL,marginTop:4}}>⚠️ Les mots de passe ne correspondent pas</div>}
+            </div>
+            {forceMdp.newMdp.length>0&&forceMdp.newMdp.length<6&&<div style={{fontSize:11,color:palette.redL}}>⚠️ Au moins 6 caractères requis</div>}
+            <button onClick={submitForceMdp}
+              disabled={forceMdp.newMdp.length<6||forceMdp.newMdp!==forceMdp.newMdp2}
+              style={{background:forceMdp.newMdp.length>=6&&forceMdp.newMdp===forceMdp.newMdp2?palette.purple:"#9ca3af",
+                color:"#fff",border:"none",borderRadius:12,padding:"13px",fontSize:15,fontWeight:700,
+                cursor:forceMdp.newMdp.length>=6&&forceMdp.newMdp===forceMdp.newMdp2?"pointer":"not-allowed",
+                marginTop:4,width:"100%",transition:"background .2s"}}>
+              ✅ Valider mon nouveau mot de passe
+            </button>
+          </div>
+        </div>
+      </div>}
 
       {currentUser && currentUser.role==="superviseur_dt" && <SupervisionDT
         user={currentUser}
