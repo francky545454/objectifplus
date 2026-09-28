@@ -664,14 +664,16 @@ function Bar(p) {
 }
 function Modal(p) {
   var T = useTheme();
-  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(6px)"}} onClick={function(e){if(e.target===e.currentTarget&&p.onClose)p.onClose();}}>
+  return <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.75)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:1000,padding:16,backdropFilter:"blur(6px)"}}>
     <div className="pop" style={{background:T.bg2,border:"1px solid "+T.brd2,borderRadius:20,padding:24,width:"100%",maxWidth:p.w||480,maxHeight:"92vh",overflowY:"auto"}}>{p.children}</div>
   </div>;
 }
 function Inp(p) {
   var T = useTheme();
   var isDark = T.bg === PALETTE_DARK.bg;
-  return <input className="inp" type={p.type||"text"} value={p.value} onChange={p.onChange} placeholder={p.placeholder||""} style={{
+  return <input className="inp" type={p.type||"text"} value={p.value} onChange={p.onChange}
+    onKeyDown={p.onKeyDown} onKeyPress={p.onKeyPress}
+    placeholder={p.placeholder||""} disabled={p.disabled} style={{
     width:"100%",background:isDark?"rgba(255,255,255,.05)":T.bg3,border:"1.5px solid "+T.brd2,
     borderRadius:10,padding:"10px 14px",fontSize:14,color:T.tx,
     transition:"border-color .2s, box-shadow .2s",
