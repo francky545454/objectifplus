@@ -2410,6 +2410,90 @@ function TicketsPanel(p) {
   );
 }
 
+// ─── JournalPanel ────────────────────────────────────────────────────────────
+function JournalPanel(p) {
+  var T = useTheme();
+  var logs = p.logs || [];
+  var [search, setSearch] = useState("");
+
+  var ACTION_META = {
+    "connexion":               {ico:"🔑", label:"Connexion",           color:"#0ea5e9"},
+    "création_utilisateur":    {ico:"➕", label:"Création compte",      color:"#22c55e"},
+    "suppression_utilisateur": {ico:"🗑️", label:"Suppression compte",   color:"#ef4444"},
+    "réinitialisation_mdp":    {ico:"🔒", label:"Réinitialisation MDP", color:"#f59e0b"},
+    "suppression_structure":   {ico:"🏛️", label:"Suppression structure",color:"#a855f7"},
+  };
+
+  var filtered = search.trim()
+    ? logs.filter(function(e){
+        var q = search.toLowerCase();
+        return (e.login||"").toLowerCase().includes(q)
+          || (e.prenom||"").toLowerCase().includes(q)
+          || (e.nom||"").toLowerCase().includes(q)
+          || (e.action||"").toLowerCase().includes(q)
+          || (e.details||"").toLowerCase().includes(q);
+      })
+    : logs;
+
+  function fmtTs(ts) {
+    if(!ts) return "";
+    var d = new Date(ts);
+    var pad = function(n){return String(n).padStart(2,"0");};
+    return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())
+      +" "+pad(d.getHours())+":"+pad(d.getMinutes())+":"+pad(d.getSeconds());
+  }
+
+  return (
+    <div style={{padding:"0 0 32px"}}>
+      <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:20}}>
+        <div style={{fontSize:22,fontWeight:800,color:T.purple}}>📋 Journal d'activité</div>
+        <div style={{marginLeft:"auto",fontSize:12,color:T.tx3}}>{filtered.length} entrée(s)</div>
+      </div>
+
+      <input
+        value={search}
+        onChange={function(e){setSearch(e.target.value);}}
+        placeholder="🔍 Rechercher (utilisateur, action…)"
+        style={{width:"100%",boxSizing:"border-box",padding:"10px 14px",borderRadius:10,
+          border:"1px solid "+T.brd,background:T.bg2,color:T.tx,fontSize:14,marginBottom:16}}
+      />
+
+      {filtered.length===0 && (
+        <div style={{textAlign:"center",color:T.tx3,padding:"40px 0",fontSize:14}}>
+          {logs.length===0 ? "Aucune activité enregistrée pour l'instant." : "Aucun résultat pour cette recherche."}
+        </div>
+      )}
+
+      <div style={{display:"flex",flexDirection:"column",gap:6}}>
+        {filtered.map(function(e,i){
+          var meta = ACTION_META[e.action] || {ico:"ℹ️",label:e.action,color:T.tx3};
+          return (
+            <div key={i} style={{display:"flex",alignItems:"flex-start",gap:10,
+              background:T.bg2,border:"1px solid "+T.brd,borderRadius:10,padding:"10px 14px",
+              borderLeft:"4px solid "+meta.color}}>
+              <div style={{fontSize:20,lineHeight:1,marginTop:2}}>{meta.ico}</div>
+              <div style={{flex:1,minWidth:0}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+                  <span style={{fontWeight:700,color:T.tx,fontSize:14}}>
+                    {e.prenom||""} {e.nom||""}{(e.prenom||e.nom)?" ":""}<span style={{color:T.tx3,fontWeight:400}}>({e.login||"?"})</span>
+                  </span>
+                  <span style={{background:meta.color+"22",color:meta.color,borderRadius:6,
+                    padding:"2px 8px",fontSize:12,fontWeight:700}}>{meta.label}</span>
+                  <span style={{fontSize:11,color:T.tx3,marginLeft:"auto"}}>{fmtTs(e.ts)}</span>
+                </div>
+                {e.details && (
+                  <div style={{fontSize:12,color:T.tx2,marginTop:4,overflow:"hidden",
+                    textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e.details}</div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function InterfacePro(p) {
   var T = useTheme();
   var u = p.user;
@@ -2562,6 +2646,7 @@ function InterfacePro(p) {
   if(isAdmin) tabsDef.push({id:"equipes",ico:"🏛️",l:"Équipes"});
   if(isSuperAdmin) tabsDef.push({id:"admins",ico:"🛡️",l:"Admins"});
   tabsDef.push({id:"tickets",ico:"🎫",l:"Tickets",badge:nbTicketsOuverts});
+  if(isSuperAdmin) tabsDef.push({id:"journal",ico:"📋",l:"Journal"});
 
   return (
     <div style={{minHeight:"100vh",background:T.bg,fontFamily:FONT}}>
@@ -3190,6 +3275,11 @@ function InterfacePro(p) {
             nf={nf}
           />
         </div>}
+
+        {/* ══ JOURNAL ══ */}
+        {tab==="journal" && isSuperAdmin && <div className="fu">
+          <JournalPanel logs={p.logs||[]} />
+        </div>}
       </div>
 
       {/* ══ MODALS ══ */}
@@ -3551,6 +3641,7 @@ function App() {
   var [echanges,    setEchanges]    = useState([]);
   var [structures,  setStructures]  = useState([]);
   var [tickets,     setTickets]     = useState([]);
+  var [logs,        setLogs]        = useState([]);
   var [dataLoaded,  setDataLoaded]  = useState(false);
   var saveRef = useRef(null);
 
@@ -3584,6 +3675,7 @@ function App() {
       setEchanges(d.echanges||[]);
       setStructures(normStructures);
       setTickets(d.tickets||[]);
+      setLogs(d.logs||[]);
       setDataLoaded(true);
     }).catch(function(){ setDataLoaded(true); });
   }, []);
@@ -3678,6 +3770,7 @@ function App() {
         setEchanges={setEchanges}
         tickets={tickets}
         setTickets={setTickets}
+        logs={logs}
         onLogout={handleLogout}
         onToggleTheme={toggleTheme}
         isDark={isDark}

@@ -95,7 +95,8 @@ def _default_data():
         "objectifs":   [],
         "recompenses": [],
         "echanges":    [],
-        "structures":  []
+        "structures":  [],
+        "logs":        []
     }
 
 def load_data() -> dict:
@@ -161,6 +162,24 @@ def err(msg, status=400):
     return jsonify({"ok": False, "error": msg}), status
 
 
+def log_action(d, action, requester, details=""):
+    """Ajoute une entrée dans le journal d'activité (max 500 entrées)."""
+    entry = {
+        "ts":      int(time.time() * 1000),
+        "userId":  requester.get("id"),
+        "login":   requester.get("login", "?"),
+        "prenom":  requester.get("prenom", ""),
+        "nom":     requester.get("nom", ""),
+        "role":    requester.get("role", "?"),
+        "action":  action,
+        "details": details,
+    }
+    logs = d.setdefault("logs", [])
+    logs.insert(0, entry)
+    if len(logs) > 500:
+        d["logs"] = logs[:500]
+
+
 # ── Routes statiques ───────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -208,14 +227,18 @@ def api_ping():
 
 @app.route("/api/data", methods=["GET"])
 def api_data_get():
+    requester = get_requester()
     d = load_data()
-    return ok({
+    payload = {
         "users":       strip_passwords(d["users"]),
         "objectifs":   d["objectifs"],
         "recompenses": d["recompenses"],
         "echanges":    d["echanges"],
         "structures":  d["structures"],
-    })
+    }
+    if requester and requester.get("role") == "superadmin":
+        payload["logs"] = d.get("logs", [])
+    return ok(payload)
 
 @app.route("/api/data", methods=["POST"])
 def api_data_post():
@@ -272,6 +295,8 @@ def api_auth():
     if user and check_password(mdp, user.get("mdp", "")):
         safe  = {k: v for k, v in user.items() if k != "mdp"}
         token = make_token(safe)
+        log_action(d, "connexion", safe)
+        save_data(d)
         return ok({"ok": True, "user": safe, "token": token})
     return err("Identifiant ou mot de passe incorrect.", 401)
 
@@ -390,6 +415,8 @@ def api_create_user():
         "structureId": b.get("structureId") or None,
     }
     d["users"].append(nu)
+    log_action(d, "création_utilisateur", requester,
+               f"{nu['role']} {nu.get('prenom','')} {nu.get('nom','')} ({login})")
     save_data(d)
     safe = {k: v for k, v in nu.items() if k != "mdp"}
     return ok({"ok": True, "user": safe})
@@ -414,6 +441,8 @@ def api_set_password(uid):
         return err("Les éducateurs ne peuvent réinitialiser que le mot de passe des jeunes.", 403)
 
     user["mdp"] = hash_password(new_mdp)
+    log_action(d, "réinitialisation_mdp", requester,
+               f"Cible : {user.get('prenom','')} {user.get('nom','')} ({user.get('login','')})")
     save_data(d)
     return ok()
 
@@ -451,6 +480,8 @@ def api_delete_user(uid):
         return err("Impossible de supprimer un super-administrateur.", 403)
 
     d["users"] = [u for u in d["users"] if u.get("id") != uid]
+    log_action(d, "suppression_utilisateur", requester,
+               f"{target.get('role','')} {target.get('prenom','')} {target.get('nom','')} ({target.get('login','')})")
     save_data(d)
     return ok()
 
@@ -472,10 +503,13 @@ def api_delete_structure(sid):
         )
 
     orig_len = len(d.get("structures", []))
+    removed  = next((s for s in d.get("structures", []) if s.get("id") == sid), None)
     d["structures"] = [s for s in d.get("structures", []) if s.get("id") != sid]
     if len(d["structures"]) == orig_len:
         return err("Structure introuvable.", 404)
 
+    log_action(d, "suppression_structure", requester,
+               removed.get("nom", str(sid)) if removed else str(sid))
     save_data(d)
     return ok()
 
