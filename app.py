@@ -102,12 +102,17 @@ def _default_data():
 def load_data() -> dict:
     if not sb:
         return _default_data()
-    res = sb.table("app_data").select("data").eq("id", "main").execute()
-    if res.data:
-        return res.data[0]["data"]
-    data = _default_data()
-    sb.table("app_data").insert({"id": "main", "data": data}).execute()
-    return data
+    try:
+        res = sb.table("app_data").select("data").eq("id", "main").execute()
+        if res.data:
+            return res.data[0]["data"]
+        # Première utilisation : on initialise la base
+        data = _default_data()
+        sb.table("app_data").insert({"id": "main", "data": data}).execute()
+        return data
+    except Exception as e:
+        # Supabase indisponible ou en pause — on remonte l'erreur explicitement
+        raise RuntimeError(f"Supabase indisponible : {e}") from e
 
 def save_data(data: dict):
     if not sb:
@@ -290,13 +295,19 @@ def api_auth():
     b     = request.get_json(force=True) or {}
     login = b.get("login", "").strip().lower()
     mdp   = b.get("mdp",   "")
-    d     = load_data()
+    try:
+        d = load_data()
+    except RuntimeError:
+        return err("Service momentanément indisponible. Veuillez réessayer dans quelques instants.", 503)
     user  = next((u for u in d["users"] if u["login"].lower() == login), None)
     if user and check_password(mdp, user.get("mdp", "")):
         safe  = {k: v for k, v in user.items() if k != "mdp"}
         token = make_token(safe)
-        log_action(d, "connexion", safe)
-        save_data(d)
+        try:
+            log_action(d, "connexion", safe)
+            save_data(d)
+        except Exception:
+            pass  # Ne pas bloquer la connexion si la sauvegarde du log échoue
         return ok({"ok": True, "user": safe, "token": token})
     return err("Identifiant ou mot de passe incorrect.", 401)
 

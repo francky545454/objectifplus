@@ -722,11 +722,20 @@ function LoginScreen(p) {
     setError("");
     if (!login.trim() || !mdp) { setError("Remplis tous les champs."); return; }
     setLoading(true);
-    apiPost("/api/auth", {login:login.trim(), mdp:mdp}).then(function(data){
-      setLoading(false);
-      if (data.ok) { setToken(data.token); p.onLogin(data.user); }
-      else { setError("Identifiant ou mot de passe incorrect."); setMdp(""); }
-    }).catch(function(){ setLoading(false); setError("Impossible de contacter le serveur."); });
+    fetch("/api/auth",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({login:login.trim(),mdp:mdp})})
+      .then(function(r){
+        var status=r.status;
+        return r.json().then(function(data){return {data:data,status:status};});
+      })
+      .then(function(res){
+        setLoading(false);
+        var data=res.data, status=res.status;
+        if(data.ok){setToken(data.token);p.onLogin(data.user);}
+        else if(status===503){setError("⚠️ Service momentanément indisponible. Réessayez dans quelques instants.");}
+        else if(status===401){setError("Identifiant ou mot de passe incorrect."); setMdp("");}
+        else{setError(data.error||"Erreur inattendue. Veuillez réessayer.");}
+      })
+      .catch(function(){setLoading(false);setError("Impossible de contacter le serveur. Vérifiez votre connexion internet.");});
   }
   function onKey(e) { if(e.key==="Enter") doLogin(); }
 
