@@ -102,17 +102,21 @@ def _default_data():
 def load_data() -> dict:
     if not sb:
         return _default_data()
-    try:
-        res = sb.table("app_data").select("data").eq("id", "main").execute()
-        if res.data:
-            return res.data[0]["data"]
-        # Première utilisation : on initialise la base
-        data = _default_data()
-        sb.table("app_data").insert({"id": "main", "data": data}).execute()
-        return data
-    except Exception as e:
-        # Supabase indisponible ou en pause — on remonte l'erreur explicitement
-        raise RuntimeError(f"Supabase indisponible : {e}") from e
+    last_exc = None
+    for attempt in range(3):          # 3 tentatives max
+        try:
+            res = sb.table("app_data").select("data").eq("id", "main").execute()
+            if res.data:
+                return res.data[0]["data"]
+            # Première utilisation : on initialise la base
+            data = _default_data()
+            sb.table("app_data").insert({"id": "main", "data": data}).execute()
+            return data
+        except Exception as e:
+            last_exc = e
+            if attempt < 2:
+                time.sleep(0.8 * (attempt + 1))  # 0.8s puis 1.6s avant de réessayer
+    raise RuntimeError(f"Supabase indisponible après 3 tentatives : {last_exc}") from last_exc
 
 def save_data(data: dict):
     if not sb:
