@@ -498,7 +498,7 @@ def api_create_users_bulk():
 @app.route("/api/users/<int:uid>/set-password", methods=["POST"])
 def api_set_password(uid):
     requester = get_requester()
-    if not requester or requester.get("role") not in ("superadmin", "admin", "educateur"):
+    if not requester or requester.get("role") not in ("superadmin", "admin", "directeur", "educateur"):
         return err("Non autorisé.", 403)
 
     b       = request.get_json(force=True) or {}
@@ -524,7 +524,7 @@ def api_set_password(uid):
 @app.route("/api/users/<int:uid>/gen-reset-code", methods=["POST"])
 def api_gen_reset_code(uid):
     requester = get_requester()
-    if not requester or requester.get("role") not in ("superadmin", "admin", "educateur"):
+    if not requester or requester.get("role") not in ("superadmin", "admin", "directeur", "educateur"):
         return err("Non autorisé.", 403)
 
     d    = load_data()
