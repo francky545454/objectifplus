@@ -2637,6 +2637,7 @@ function JournalPanel(p) {
 
   var ACTION_META = {
     "connexion":               {ico:"🔑", label:"Connexion",           color:"#0ea5e9"},
+    "installation_pwa":        {ico:"📲", label:"Installation appli",  color:"#06b6d4"},
     "création_utilisateur":    {ico:"➕", label:"Création compte",      color:"#22c55e"},
     "suppression_utilisateur": {ico:"🗑️", label:"Suppression compte",   color:"#ef4444"},
     "réinitialisation_mdp":    {ico:"🔒", label:"Réinitialisation MDP", color:"#f59e0b"},
@@ -4089,6 +4090,19 @@ ReactDOM.render(<App />, document.getElementById('root'));
           navigator.serviceWorker.register('/sw.js');
         });
       }
+      // Notifie le backend quand l'utilisateur installe la PWA sur son appareil
+      window.addEventListener('appinstalled', function () {
+        try {
+          var token = localStorage.getItem('objp-token');
+          if (token) {
+            fetch('/api/log-install', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+              body: JSON.stringify({ ua: navigator.userAgent }),
+            });
+          }
+        } catch(e) {}
+      });
     </script>
 </body>
 </html>

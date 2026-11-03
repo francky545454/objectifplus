@@ -211,6 +211,24 @@ def icons(filename):
     return send_from_directory(os.path.join(BASE_DIR, "icons"), filename, mimetype=mime)
 
 
+# ── API : installation PWA ────────────────────────────────────────────────────
+
+@app.route("/api/log-install", methods=["POST"])
+def api_log_install():
+    requester = get_requester()
+    if not requester:
+        return err("Non authentifié.", 401)
+    b  = request.get_json(force=True) or {}
+    ua = b.get("ua", "")[:200]  # user-agent tronqué pour ne pas saturer la base
+    try:
+        d = load_data()
+        log_action(d, "installation_pwa", requester, ua)
+        save_data(d)
+    except Exception:
+        pass  # ne jamais bloquer l'utilisateur pour un log non critique
+    return ok()
+
+
 # ── API : ping (cron quotidien Vercel — maintient Supabase éveillé) ───────────
 
 @app.route("/api/ping", methods=["GET"])
