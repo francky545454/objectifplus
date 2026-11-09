@@ -211,6 +211,27 @@ def icons(filename):
     return send_from_directory(os.path.join(BASE_DIR, "icons"), filename, mimetype=mime)
 
 
+# ── API : log générique (actions frontend) ───────────────────────────────────
+
+@app.route("/api/log", methods=["POST"])
+def api_log():
+    requester = get_requester()
+    if not requester:
+        return err("Non authentifié.", 401)
+    b       = request.get_json(force=True) or {}
+    action  = b.get("action",  "")[:80]
+    details = b.get("details", "")[:300]
+    if not action:
+        return err("action manquante.", 400)
+    try:
+        d = load_data()
+        log_action(d, action, requester, details)
+        save_data(d)
+    except Exception:
+        pass
+    return ok()
+
+
 # ── API : installation PWA ────────────────────────────────────────────────────
 
 @app.route("/api/log-install", methods=["POST"])

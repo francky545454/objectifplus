@@ -951,6 +951,7 @@ function DashJeune(p) {
       return o.id===modal.obj.id ? Object.assign({},o,{statut:"attente_valid",commentaireJeune:msgJeune}) : o;
     });});
     p.notify("✋ Objectif soumis à validation !", "info");
+    apiPost("/api/log", {action:"demande_validation", details:modal.obj.titre+" — "+u.prenom+" "+u.nom});
     setModal(null);
   }
   function ajouterCommentaire(obj) { setModal({type:"comment",obj:obj}); setMsgJeune(obj.commentaireJeune||""); }
@@ -2636,12 +2637,17 @@ function JournalPanel(p) {
   var [search, setSearch] = useState("");
 
   var ACTION_META = {
-    "connexion":               {ico:"🔑", label:"Connexion",           color:"#0ea5e9"},
-    "installation_pwa":        {ico:"📲", label:"Installation appli",  color:"#06b6d4"},
-    "création_utilisateur":    {ico:"➕", label:"Création compte",      color:"#22c55e"},
-    "suppression_utilisateur": {ico:"🗑️", label:"Suppression compte",   color:"#ef4444"},
-    "réinitialisation_mdp":    {ico:"🔒", label:"Réinitialisation MDP", color:"#f59e0b"},
-    "suppression_structure":   {ico:"🏛️", label:"Suppression structure",color:"#a855f7"},
+    "connexion":               {ico:"🔑", label:"Connexion",             color:"#0ea5e9"},
+    "installation_pwa":        {ico:"📲", label:"Installation appli",    color:"#06b6d4"},
+    "création_objectif":       {ico:"🎯", label:"Objectif créé",         color:"#8b5cf6"},
+    "validation_objectif":     {ico:"✅", label:"Objectif validé",       color:"#22c55e"},
+    "refus_objectif":          {ico:"❌", label:"Objectif refusé",       color:"#ef4444"},
+    "suppression_objectif":    {ico:"🗑️", label:"Objectif supprimé",     color:"#94a3b8"},
+    "demande_validation":      {ico:"🙋", label:"Demande de validation", color:"#f59e0b"},
+    "création_utilisateur":    {ico:"➕", label:"Création compte",        color:"#22c55e"},
+    "suppression_utilisateur": {ico:"🗑️", label:"Suppression compte",    color:"#ef4444"},
+    "réinitialisation_mdp":    {ico:"🔒", label:"Réinitialisation MDP",  color:"#f59e0b"},
+    "suppression_structure":   {ico:"🏛️", label:"Suppression structure", color:"#a855f7"},
   };
 
   var filtered = search.trim()
@@ -2798,20 +2804,31 @@ function InterfacePro(p) {
   function saveObj() {
     if(!fObj.titre||!fObj.jeuneId){nf("Remplis tous les champs obligatoires","error");return;}
     var n={id:Date.now(),jeuneId:Number(fObj.jeuneId),titre:fObj.titre,cat:fObj.cat,pts:Number(fObj.pts),statut:"en_cours",dateEch:fObj.dateEch,noteEdu:fObj.noteEdu,commentaireJeune:"",creePar:u.id,cps:fObj.cps||[]};
+    var j = jeunes.find(function(x){return x.id===Number(fObj.jeuneId);}) || {prenom:"?"};
     p.setObjectifs(function(prev){return [...prev,n];});
     setModal(null);
-    nf("✅ Objectif créé pour "+( jeunes.find(function(j){return j.id===Number(fObj.jeuneId);}) || {prenom:"?"} ).prenom,"success");
+    nf("✅ Objectif créé pour "+j.prenom,"success");
+    apiPost("/api/log", {action:"création_objectif", details:n.titre+" — "+j.prenom+" "+(j.nom||"")});
     setFObj({titre:"",cat:"scol",pts:20,dateEch:"",jeuneId:selJ?selJ.id:"",noteEdu:"",cps:[]});
+  }
+  function _logObj(action, id) {
+    var obj = p.objectifs.find(function(o){return o.id===id;});
+    var j   = obj ? jeunes.find(function(x){return x.id===obj.jeuneId;}) : null;
+    var details = (obj?obj.titre:"?") + " — " + (j?j.prenom+" "+j.nom:"?");
+    apiPost("/api/log", {action:action, details:details});
   }
   function validerObj(id,note) {
     p.setObjectifs(function(prev){return prev.map(function(o){return o.id===id?Object.assign({},o,{statut:"valide",noteEdu:note||o.noteEdu}):o;});});
     nf("🏆 Objectif validé !","success");
+    _logObj("validation_objectif", id);
   }
   function refuserObj(id) {
     p.setObjectifs(function(prev){return prev.map(function(o){return o.id===id?Object.assign({},o,{statut:"refuse"}):o;});});
     nf("Objectif non validé","warn");
+    _logObj("refus_objectif", id);
   }
   function suppObj(id) {
+    _logObj("suppression_objectif", id);
     p.setObjectifs(function(prev){return prev.filter(function(o){return o.id!==id;});});
     nf("Objectif supprimé","warn");
   }
