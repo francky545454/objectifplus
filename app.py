@@ -352,6 +352,18 @@ def api_auth():
         except Exception:
             pass  # Ne pas bloquer la connexion si la sauvegarde du log échoue
         return ok({"ok": True, "user": safe, "token": token})
+    # Échec — on détermine la cause précise pour le journal
+    try:
+        if user is None:
+            pseudo = {"login": login, "role": "inconnu", "prenom": "", "nom": ""}
+            cause  = "Identifiant introuvable"
+        else:
+            pseudo = {k: v for k, v in user.items() if k != "mdp"}
+            cause  = "Mot de passe incorrect"
+        log_action(d, "echec_connexion", pseudo, cause)
+        save_data(d)
+    except Exception:
+        pass
     return err("Identifiant ou mot de passe incorrect.", 401)
 
 

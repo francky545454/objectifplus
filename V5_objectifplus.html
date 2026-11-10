@@ -2636,8 +2636,11 @@ function JournalPanel(p) {
   var logs = p.logs || [];
   var [search, setSearch] = useState("");
 
+  var ROLE_LABEL = {superadmin:"Superadmin",admin:"Admin",directeur:"Directeur",educateur:"Éducateur",jeune:"Jeune",inconnu:"Inconnu"};
+
   var ACTION_META = {
     "connexion":               {ico:"🔑", label:"Connexion",             color:"#0ea5e9"},
+    "echec_connexion":         {ico:"🚫", label:"Échec connexion",       color:"#ef4444"},
     "installation_pwa":        {ico:"📲", label:"Installation appli",    color:"#06b6d4"},
     "création_objectif":       {ico:"🎯", label:"Objectif créé",         color:"#8b5cf6"},
     "validation_objectif":     {ico:"✅", label:"Objectif validé",       color:"#22c55e"},
@@ -2703,6 +2706,8 @@ function JournalPanel(p) {
                   <span style={{fontWeight:700,color:T.tx,fontSize:14}}>
                     {e.prenom||""} {e.nom||""}{(e.prenom||e.nom)?" ":""}<span style={{color:T.tx3,fontWeight:400}}>({e.login||"?"})</span>
                   </span>
+                  {e.role && <span style={{background:T.bg3,color:T.tx3,borderRadius:6,
+                    padding:"2px 7px",fontSize:11,fontWeight:600}}>{ROLE_LABEL[e.role]||e.role}</span>}
                   <span style={{background:meta.color+"22",color:meta.color,borderRadius:6,
                     padding:"2px 8px",fontSize:12,fontWeight:700}}>{meta.label}</span>
                   <span style={{fontSize:11,color:T.tx3,marginLeft:"auto"}}>{fmtTs(e.ts)}</span>
